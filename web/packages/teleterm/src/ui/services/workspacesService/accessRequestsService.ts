@@ -76,10 +76,7 @@ export class AccessRequestsService {
     }
   }
 
-  async addOrRemoveResource({
-    kind,
-    resource,
-  }: ResourceRequest): Promise<void> {
+  async addOrRemoveResource(request: ResourceRequest): Promise<void> {
     if (!(await this.canUpdateRequest('resource'))) {
       return;
     }
@@ -93,22 +90,32 @@ export class AccessRequestsService {
 
       const { resources } = draftState.pending;
 
-      if (resources.has(resource.uri)) {
-        resources.delete(resource.uri);
+      if (resources.has(request.resource.uri)) {
+        resources.delete(request.resource.uri);
       } else {
-        // Store only properties required by the type.
-        if (kind === 'server') {
-          resources.set(resource.uri, {
-            kind,
-            resource: { uri: resource.uri, hostname: resource.hostname },
-          });
-        } else {
-          resources.set(resource.uri, {
-            kind,
-            resource: { uri: resource.uri },
-          });
-        }
+        resources.set(request.resource.uri, getRequiredProperties(request));
       }
+    });
+  }
+
+  async addResource(request: ResourceRequest): Promise<void> {
+    if (!(await this.canUpdateRequest('resource'))) {
+      return;
+    }
+    this.setState(draftState => {
+      if (draftState.pending.kind !== 'resource') {
+        draftState.pending = {
+          kind: 'resource',
+          resources: new Map(),
+        };
+      }
+
+      const { resources } = draftState.pending;
+
+      if (resources.has(request.resource.uri)) {
+        return;
+      }
+      resources.set(request.resource.uri, getRequiredProperties(request));
     });
   }
 
@@ -156,6 +163,29 @@ export class AccessRequestsService {
     }
     return shouldProceed;
   }
+}
+
+/** Returns only the properties required by the type. */
+function getRequiredProperties({
+  kind,
+  resource,
+}: ResourceRequest): ResourceRequest {
+  if (kind === 'server') {
+    return {
+      kind,
+      resource: { uri: resource.uri, hostname: resource.hostname },
+    };
+  }
+  if (kind === 'app') {
+    return {
+      kind,
+      resource: { uri: resource.uri, samlApp: resource.samlApp },
+    };
+  }
+  return {
+    kind,
+    resource: { uri: resource.uri },
+  };
 }
 
 /** Returns an empty access request. We default to the resource access request. */
@@ -207,10 +237,16 @@ export type ResourceRequest =
       kind: 'app';
       resource: {
         uri: AppUri;
+        samlApp: boolean;
       };
     };
 
-type SharedResourceAccessRequestKind = 'app' | 'db' | 'node' | 'kube_cluster';
+type SharedResourceAccessRequestKind =
+  | 'app'
+  | 'db'
+  | 'node'
+  | 'kube_cluster'
+  | 'saml_idp_service_provider';
 
 /**
  * Extracts `kind`, `id` and `name` from the resource request.
@@ -232,6 +268,9 @@ export function extractResourceRequestProperties({
   switch (kind) {
     case 'app': {
       const { appId } = routing.parseAppUri(resource.uri).params;
+      if (resource.samlApp) {
+        return { kind: 'saml_idp_service_provider', id: appId, name: appId };
+      }
       return { kind: 'app', id: appId, name: appId };
     }
     case 'server': {
@@ -279,6 +318,19 @@ export function toResourceRequest({
             leafClusterId,
             appId: resourceId,
           }),
+          samlApp: false,
+        },
+        kind: 'app',
+      };
+    case 'saml_idp_service_provider':
+      return {
+        resource: {
+          uri: routing.getAppUri({
+            rootClusterId,
+            leafClusterId,
+            appId: resourceId,
+          }),
+          samlApp: true,
         },
         kind: 'app',
       };

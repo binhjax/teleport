@@ -113,6 +113,11 @@ type PluginCredentials interface {
 // PluginStatus is the plugin status
 type PluginStatus interface {
 	GetCode() PluginStatusCode
+	GetErrorMessage() string
+	GetLastSyncTime() time.Time
+	GetGitlab() *PluginGitlabStatusV1
+	GetEntraId() *PluginEntraIDStatusV1
+	GetOkta() *PluginOktaStatusV1
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
@@ -318,7 +323,7 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 	default:
-		return trace.BadParameter("settings are not set or have an unknown type")
+		return nil
 	}
 
 	return nil
@@ -427,7 +432,7 @@ func (p *PluginV1) SetCredentials(creds PluginCredentials) error {
 
 // GetStatus implements Plugin
 func (p *PluginV1) GetStatus() PluginStatus {
-	return p.Status
+	return &p.Status
 }
 
 // SetStatus implements Plugin
@@ -436,10 +441,13 @@ func (p *PluginV1) SetStatus(status PluginStatus) error {
 		p.Status = PluginStatusV1{}
 		return nil
 	}
-	p.Status = PluginStatusV1{
-		Code: status.GetCode(),
+	switch status := status.(type) {
+	case *PluginStatusV1:
+		p.Status = *status
+		return nil
+	default:
+		return trace.BadParameter("unsupported plugin status type %T", status)
 	}
-	return nil
 }
 
 // GetGeneration returns the plugin generation.
@@ -634,6 +642,9 @@ func (c *PluginEntraIDSettings) Validate() error {
 	if len(c.SyncSettings.DefaultOwners) == 0 {
 		return trace.BadParameter("sync_settings.default_owners must be set")
 	}
+	if c.SyncSettings.SsoConnectorId == "" {
+		return trace.BadParameter("sync_settings.sso_connector_id must be set")
+	}
 
 	return nil
 }
@@ -653,6 +664,16 @@ func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
 // GetCode returns the status code
 func (c PluginStatusV1) GetCode() PluginStatusCode {
 	return c.Code
+}
+
+// GetErrorMessage returns the error message
+func (c PluginStatusV1) GetErrorMessage() string {
+	return c.ErrorMessage
+}
+
+// GetLastSyncTime returns the last run of the plugin.
+func (c PluginStatusV1) GetLastSyncTime() time.Time {
+	return c.LastSyncTime
 }
 
 // CheckAndSetDefaults checks that the required fields for the Gitlab plugin are set.

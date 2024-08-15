@@ -409,6 +409,7 @@ func (s *Server) TargetMetadata() apievents.ServerMetadata {
 	}
 
 	return apievents.ServerMetadata{
+		ServerVersion:   teleport.Version,
 		ServerNamespace: s.GetNamespace(),
 		ServerID:        s.targetID,
 		ServerAddr:      s.targetAddr,
@@ -967,6 +968,13 @@ func (s *Server) handleGlobalRequest(ctx context.Context, req *ssh.Request) {
 			return
 		}
 		// Pass request on unchanged.
+	case teleport.SessionIDQueryRequest:
+		// Reply true to session ID query requests, we will set new
+		// session IDs for new sessions
+		if err := req.Reply(true, nil); err != nil {
+			s.log.WithError(err).Warnf("Failed to reply to session ID query request")
+		}
+		return
 	case teleport.KeepAliveReqType:
 	default:
 		s.log.Debugf("Rejecting unknown global request %q.", req.Type)
@@ -1278,7 +1286,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		return s.handleEnvs(ctx, ch, req, scx)
 	case sshutils.SubsystemRequest:
 		return s.handleSubsystem(ctx, ch, req, scx)
-	case sshutils.X11ForwardRequest:
+	case x11.ForwardRequest:
 		return s.handleX11Forward(ctx, ch, req, scx)
 	case sshutils.AgentForwardRequest:
 		// to maintain interoperability with OpenSSH, agent forwarding requests
@@ -1353,7 +1361,7 @@ func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel
 	defer sch.Close()
 
 	// setup outbound X11 channel to client
-	cch, cin, err := s.sconn.OpenChannel(sshutils.X11ChannelRequest, nch.ExtraData())
+	cch, cin, err := s.sconn.OpenChannel(x11.ChannelRequest, nch.ExtraData())
 	if err != nil {
 		s.log.Errorf("X11 channel fwd failed: %v", err)
 		return
@@ -1378,7 +1386,7 @@ func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel
 		}
 	}()
 
-	if err := x11.Forward(ctx, cch, sch); err != nil {
+	if err := utils.ProxyConn(ctx, cch, sch); err != nil {
 		s.log.WithError(err).Debug("Encountered error during x11 forwarding")
 	}
 }
@@ -1588,8 +1596,7 @@ func (s *Server) handlePuTTYWinadj(ch ssh.Channel, req *ssh.Request) error {
 // teleportVarPrefixes contains the list of prefixes used by Teleport environment
 // variables. Matching variables are saved in the session context when forwarding
 // the calls to a remote SSH server as they can contain Teleport-specific
-// information used to process the session properly (e.g. TELEPORT_SESSION or
-// SSH_TELEPORT_RECORD_NON_INTERACTIVE)
+// information used to process the session properly (e.g. TELEPORT_SESSION)
 var teleportVarPrefixes = []string{"TELEPORT_", "SSH_TELEPORT_"}
 
 func isTeleportEnv(varName string) bool {

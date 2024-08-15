@@ -302,14 +302,14 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 		return trace.Wrap(err)
 	}
 
-	var key *client.Key
+	var keyRing *client.KeyRing
 	// Identity files themselves act as the database credentials (if any), so
 	// don't bother fetching new certs.
 	if profile.IsVirtual {
 		log.Info("Note: already logged in due to an identity file (`-i ...`); will only update database config files.")
 	} else {
 		if err = client.RetryWithRelogin(cf.Context, tc, func() error {
-			key, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
+			keyRing, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 				RouteToCluster: tc.SiteName,
 				RouteToDatabase: proto.RouteToDatabase{
 					ServiceName: dbInfo.ServiceName,
@@ -325,16 +325,16 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 			return trace.Wrap(err)
 		}
 
-		if err = tc.LocalAgent().AddDatabaseKey(key); err != nil {
+		if err = tc.LocalAgent().AddDatabaseKeyRing(keyRing); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	if dbInfo.Protocol == defaults.ProtocolOracle {
-		if err := generateDBLocalProxyCert(key, profile); err != nil {
+		if err := generateDBLocalProxyCert(keyRing, profile); err != nil {
 			return trace.Wrap(err)
 		}
-		err = oracle.GenerateClientConfiguration(key, dbInfo.RouteToDatabase, profile)
+		err = oracle.GenerateClientConfiguration(keyRing, dbInfo.RouteToDatabase, profile)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -539,7 +539,8 @@ func onDatabaseConfig(cf *CLIConf) error {
 		cmd, err := dbcmd.NewCmdBuilder(tc, profile, *database, rootCluster,
 			dbcmd.WithPrintFormat(),
 			dbcmd.WithLogger(log),
-		).GetConnectCommand()
+			dbcmd.WithGetDatabaseFunc(getDatabase),
+		).GetConnectCommand(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -549,7 +550,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 			database.ServiceName, host, port, database.Username,
 			database.Database, profile.CACertPathForCluster(rootCluster),
 			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName),
-			profile.KeyPath(),
+			profile.DatabaseKeyPathForCluster(tc.SiteName, database.ServiceName),
 		}
 		out, err := serializeDatabaseConfig(configInfo, format)
 		if err != nil {
@@ -568,7 +569,9 @@ Key:       %v
 `,
 			database.ServiceName, host, port, database.Username,
 			database.Database, profile.CACertPathForCluster(rootCluster),
-			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName), profile.KeyPath())
+			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName),
+			profile.DatabaseKeyPathForCluster(tc.SiteName, database.ServiceName),
+		)
 	}
 	return nil
 }
@@ -628,7 +631,7 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 		return nil, trace.Wrap(err)
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), opts...)
+	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf.Context, tc, listener, cf.InsecureSkipVerify), opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -651,6 +654,7 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	host := "localhost"
 	cmdOpts := []dbcmd.ConnectCommandFunc{
 		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(rootClusterName)),
+		dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
 	}
 	if requires.tunnel {
 		cmdOpts = append(cmdOpts, dbcmd.WithNoTLS())
@@ -706,7 +710,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConf
 		// proxy starts instead.
 		cert, err := loadDBCertificate(arg.tc, arg.dbInfo.ServiceName)
 		if err == nil {
-			opts = append(opts, alpnproxy.WithClientCert(cert))
+			cc.SetCert(cert)
 		}
 		return opts, nil
 	}
@@ -784,7 +788,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	}
 
 	bb := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootClusterName, opts...)
-	cmd, err := bb.GetConnectCommand()
+	cmd, err := bb.GetConnectCommand(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1020,7 +1024,7 @@ func (d *databaseInfo) GetDatabase(ctx context.Context, tc *client.TeleportClien
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.database != nil {
-		return d.database, nil
+		return d.database.Copy(), nil
 	}
 	// holding mutex across the api call to avoid multiple redundant api calls.
 	database, err := getDatabase(ctx, tc, d.ServiceName)
@@ -1028,7 +1032,15 @@ func (d *databaseInfo) GetDatabase(ctx context.Context, tc *client.TeleportClien
 		return nil, trace.Wrap(err)
 	}
 	d.database = database
-	return d.database, nil
+	return d.database.Copy(), nil
+}
+
+// getDatabaseForDBCmd is a callback for dbcmd connect option.
+func (d *databaseInfo) getDatabaseForDBCmd(ctx context.Context, tc *client.TeleportClient, serviceName string) (types.Database, error) {
+	if serviceName != d.ServiceName {
+		return nil, trace.BadParameter("expect database service %s but got %s", d.ServiceName, serviceName)
+	}
+	return d.GetDatabase(ctx, tc)
 }
 
 // chooseOneDatabase is a helper func that returns either the only database in a

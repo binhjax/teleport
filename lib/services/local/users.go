@@ -1279,7 +1279,9 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 // UpsertOIDCConnector upserts OIDC Connector
 func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
 	fmt.Printf("binhnt.services.local.users: UpsertOIDCConnector start. \n")
-
+	// if err := connector.Validate(); err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
 	rev := connector.GetRevision()
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
@@ -1303,6 +1305,9 @@ func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector typ
 func (s *IdentityService) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
 	fmt.Printf("binhnt.services.local.users: CreateOIDCConnector start. \n")
 
+	// if err := connector.Validate(); err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1324,6 +1329,9 @@ func (s *IdentityService) CreateOIDCConnector(ctx context.Context, connector typ
 func (s *IdentityService) UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
 	fmt.Printf("binhnt.services.local.users: UpdateOIDCConnector start. \n")
 
+	// if err := connector.Validate(); err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1940,27 +1948,25 @@ func keyAttestationDataFingerprint(pubDER []byte) string {
 }
 
 const (
-	webPrefix                   = "web"
-	usersPrefix                 = "users"
-	sessionsPrefix              = "sessions"
-	attemptsPrefix              = "attempts"
-	pwdPrefix                   = "pwd"
-	connectorsPrefix            = "connectors"
-	oidcPrefix                  = "oidc"
-	samlPrefix                  = "saml"
-	githubPrefix                = "github"
-	requestsPrefix              = "requests"
-	requestsTracePrefix         = "requestsTrace"
-	usedTOTPPrefix              = "used_totp"
-	usedTOTPTTL                 = 30 * time.Second
-	mfaDevicePrefix             = "mfa"
-	webauthnPrefix              = "webauthn"
-	webauthnGlobalSessionData   = "sessionData"
-	webauthnLocalAuthPrefix     = "webauthnlocalauth"
-	webauthnSessionData         = "webauthnsessiondata"
-	recoveryCodesPrefix         = "recoverycodes"
-	attestationsPrefix          = "key_attestations"
-	assistantMessagePrefix      = "assistant_messages"
-	assistantConversationPrefix = "assistant_conversations"
-	userPreferencesPrefix       = "user_preferences"
+	webPrefix                 = "web"
+	usersPrefix               = "users"
+	sessionsPrefix            = "sessions"
+	attemptsPrefix            = "attempts"
+	pwdPrefix                 = "pwd"
+	connectorsPrefix          = "connectors"
+	oidcPrefix                = "oidc"
+	samlPrefix                = "saml"
+	githubPrefix              = "github"
+	requestsPrefix            = "requests"
+	requestsTracePrefix       = "requestsTrace"
+	usedTOTPPrefix            = "used_totp"
+	usedTOTPTTL               = 30 * time.Second
+	mfaDevicePrefix           = "mfa"
+	webauthnPrefix            = "webauthn"
+	webauthnGlobalSessionData = "sessionData"
+	webauthnLocalAuthPrefix   = "webauthnlocalauth"
+	webauthnSessionData       = "webauthnsessiondata"
+	recoveryCodesPrefix       = "recoverycodes"
+	attestationsPrefix        = "key_attestations"
+	userPreferencesPrefix     = "user_preferences"
 )

@@ -20,8 +20,6 @@ package srv
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -188,47 +186,6 @@ type Server interface {
 	TargetMetadata() apievents.ServerMetadata
 }
 
-// childProcessError is used to provide an underlying error
-// from a re-executed Teleport child process to its parent.
-type childProcessError struct {
-	Code     int    `json:"code"`
-	RawError []byte `json:"rawError"`
-}
-
-// writeChildError encodes the provided error
-// as json and writes it to w. Special care
-// is taken to preserve the error type by
-// including the error code and raw message
-// so that [DecodeChildError] will return
-// the matching error type and message.
-func writeChildError(w io.Writer, err error) {
-	if w == nil || err == nil {
-		return
-	}
-
-	data, jerr := json.Marshal(err)
-	if jerr != nil {
-		return
-	}
-
-	_ = json.NewEncoder(w).Encode(childProcessError{
-		Code:     trace.ErrorToCode(err),
-		RawError: data,
-	})
-}
-
-// DecodeChildError consumes the output from a child
-// process decoding it from its raw form back into
-// a concrete error.
-func DecodeChildError(r io.Reader) error {
-	var c childProcessError
-	if err := json.NewDecoder(r).Decode(&c); err != nil {
-		return nil
-	}
-
-	return trace.ReadError(c.Code, c.RawError)
-}
-
 // IdentityContext holds all identity information associated with the user
 // logged on the connection.
 type IdentityContext struct {
@@ -280,6 +237,10 @@ type IdentityContext struct {
 	// with, if any.
 	BotName string
 
+	// BotInstanceID is the unique identifier of the Machine ID bot instance
+	// this identity is associated with, if any.
+	BotInstanceID string
+
 	// AllowedResourceIDs lists the resources this identity should be allowed to
 	// access
 	AllowedResourceIDs []types.ResourceID
@@ -318,6 +279,10 @@ type ServerContext struct {
 
 	// term holds PTY if it was requested by the session.
 	term Terminal
+
+	// sessionID holds the session ID that will be used when a new
+	// session is created.
+	sessionID rsession.ID
 
 	// session holds the active session (if there's an active one).
 	session *session
@@ -407,12 +372,6 @@ type ServerContext struct {
 	killShellr *os.File
 	killShellw *os.File
 
-	// multiWriter is used to record non-interactive session output.
-	// Currently, used by Assist.
-	multiWriter io.Writer
-	// recordNonInteractiveSession enables non-interactive session recording. Used by Assist.
-	recordNonInteractiveSession bool
-
 	// ExecType holds the type of the channel or request. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.
 	ExecType string
@@ -430,20 +389,6 @@ type ServerContext struct {
 	// allowFileCopying controls if remote file operations via SCP/SFTP are allowed
 	// by the server.
 	AllowFileCopying bool
-
-	// x11rdy{r,w} is used to signal from the child process to the
-	// parent process when X11 forwarding is set up.
-	x11rdyr *os.File
-	x11rdyw *os.File
-
-	// err{r,w} is used to propagate errors from the child process to the
-	// parent process so the parent can get more information about why the child
-	// process failed and act accordingly.
-	errr *os.File
-	errw *os.File
-
-	// x11Config holds the xauth and XServer listener config for this session.
-	x11Config *X11Config
 
 	// JoinOnly is set if the connection was created using a join-only principal and may only be used to join other sessions.
 	JoinOnly bool
@@ -596,24 +541,6 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child.AddCloser(child.killShellr)
 	child.AddCloser(child.killShellw)
 
-	// Create pipe used to get X11 forwarding ready signal from the child process.
-	child.x11rdyr, child.x11rdyw, err = os.Pipe()
-	if err != nil {
-		childErr := child.Close()
-		return nil, nil, trace.NewAggregate(err, childErr)
-	}
-	child.AddCloser(child.x11rdyr)
-	child.AddCloser(child.x11rdyw)
-
-	// Create pipe used to get errors from the child process.
-	child.errr, child.errw, err = os.Pipe()
-	if err != nil {
-		childErr := child.Close()
-		return nil, nil, trace.NewAggregate(err, childErr)
-	}
-	child.AddCloser(child.errr)
-	child.AddCloser(child.errw)
-
 	return ctx, child, nil
 }
 
@@ -634,7 +561,7 @@ func (c *ServerContext) SessionID() rsession.ID {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.session == nil {
-		return ""
+		return c.sessionID
 	}
 	return c.session.id
 }
@@ -653,19 +580,31 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 	// its ID will be added to the environment
 	ssid, found := c.getEnvLocked(sshutils.SessionEnvVar)
 	if !found {
+		c.sessionID = rsession.NewID()
+		c.Logger.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
 		return nil
 	}
+
 	// make sure whatever session is requested is a valid session
 	id, err := rsession.ParseID(ssid)
 	if err != nil {
-		return trace.BadParameter("invalid session id")
+		return trace.BadParameter("invalid session ID")
 	}
 
 	// update ctx with the session if it exists
 	if sess, found := reg.findSession(*id); found {
+		c.sessionID = *id
 		c.session = sess
 		c.Logger.Debugf("Will join session %v for SSH connection %v.", c.session.id, c.ServerConn.RemoteAddr())
 	} else {
+		// TODO(capnspacehook): DELETE IN 17.0.0 - by then all supported
+		// clients should only set TELEPORT_SESSION when they want to
+		// join a session. Always return an error instead of using a
+		// new ID.
+		//
+		// to prevent the user from controlling the session ID, generate
+		// a new one
+		c.sessionID = rsession.NewID()
 		c.Logger.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
 	}
 
@@ -737,10 +676,20 @@ func (c *ServerContext) getEnvLocked(key string) (string, bool) {
 }
 
 // setSession sets the context's session
-func (c *ServerContext) setSession(sess *session) {
+func (c *ServerContext) setSession(sess *session, ch ssh.Channel) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.session = sess
+
+	// inform the client of the session ID that is being used in a new
+	// goroutine to reduce latency
+	go func() {
+		c.Logger.Debug("Sending current session ID.")
+		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(sess.ID()))
+		if err != nil {
+			c.Logger.WithError(err).Debug("Failed to send the current session ID.")
+		}
+	}()
 }
 
 // getSession returns the context's session
@@ -805,26 +754,12 @@ func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
 }
 
 // OpenXServerListener opens a new XServer unix listener.
-func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, displayOffset, maxDisplays int) error {
-	l, display, err := x11.OpenNewXServerListener(displayOffset, maxDisplays, x11Req.ScreenNumber)
+func (c *ServerContext) HandleX11Listener(l net.Listener, singleConnection bool) error {
+	display, err := x11.ParseDisplayFromUnixSocket(l.Addr().String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	err = c.setX11Config(&X11Config{
-		XServerUnixSocket: l.Addr().String(),
-		XAuthEntry: x11.XAuthEntry{
-			Display: display,
-			Proto:   x11Req.AuthProtocol,
-			Cookie:  x11Req.AuthCookie,
-		},
-	})
-	if err != nil {
-		l.Close()
-		return trace.Wrap(err)
-	}
-
-	c.AddCloser(l)
+	c.Parent().SetEnv(x11.DisplayEnv, display.String())
 
 	// Prepare X11 channel request payload
 	originHost, originPort, err := net.SplitHostPort(c.ServerConn.LocalAddr().String())
@@ -844,26 +779,16 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 		for {
 			xconn, err := l.Accept()
 			if err != nil {
-				// listener is closed
+				if !utils.IsOKNetworkError(err) {
+					c.Logger.WithError(err).Debug("Encountered error accepting XServer connection")
+				}
 				return
 			}
 
 			go func() {
 				defer xconn.Close()
 
-				// If the session has not signaled that X11 forwarding is
-				// fully set up yet, then ignore any incoming connections.
-				// The client's session hasn't been fully set up yet so this
-				// could potentially be a break-in attempt.
-				if ok, err := c.x11Ready(); err != nil {
-					c.Logger.WithError(err).Debug("Failed to get X11 ready status")
-					return
-				} else if !ok {
-					c.Logger.WithError(err).Debug("Rejecting X11 request, XServer Proxy is not ready")
-					return
-				}
-
-				xchan, sin, err := c.ServerConn.OpenChannel(sshutils.X11ChannelRequest, x11ChannelReqPayload)
+				xchan, sin, err := c.ServerConn.OpenChannel(x11.ChannelRequest, x11ChannelReqPayload)
 				if err != nil {
 					c.Logger.WithError(err).Debug("Failed to open a new X11 channel")
 					return
@@ -881,12 +806,12 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 					}
 				}()
 
-				if err := x11.Forward(ctx, xconn, xchan); err != nil {
+				if err := utils.ProxyConn(ctx, xconn, xchan); err != nil {
 					c.Logger.WithError(err).Debug("Encountered error during X11 forwarding")
 				}
 			}()
 
-			if x11Req.SingleConnection {
+			if singleConnection {
 				l.Close()
 				return
 			}
@@ -894,52 +819,6 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 	}()
 
 	return nil
-}
-
-// getX11Config gets the x11 config for this server session.
-func (c *ServerContext) getX11Config() X11Config {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.x11Config != nil {
-		return *c.x11Config
-	}
-	return X11Config{}
-}
-
-// setX11Config sets X11 config for the session, or returns an error if already set.
-func (c *ServerContext) setX11Config(cfg *X11Config) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.x11Config != nil {
-		return trace.AlreadyExists("X11 forwarding is already set up for this session")
-	}
-
-	c.x11Config = cfg
-	return nil
-}
-
-// x11Ready returns whether the X11 unix listener is ready to accept connections.
-func (c *ServerContext) x11Ready() (bool, error) {
-	// Wait for child process to send signal (1 byte)
-	// or EOF if signal was already received.
-	_, err := io.ReadFull(c.x11rdyr, make([]byte, 1))
-	if errors.Is(err, io.EOF) {
-		return true, nil
-	} else if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	// signal received, close writer so future calls read EOF.
-	if err := c.x11rdyw.Close(); err != nil {
-		return false, trace.Wrap(err)
-	}
-	return true, nil
-}
-
-// GetChildError returns the error from the child process
-func (c *ServerContext) GetChildError() error {
-	return DecodeChildError(c.errr)
 }
 
 // takeClosers returns all resources that should be closed and sets the properties to null
@@ -1177,7 +1056,6 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
-		X11Config:             c.getX11Config(),
 	}, nil
 }
 
@@ -1213,6 +1091,8 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		AccessRequests: id.ActiveRequests,
 		TrustedDevice:  eventDeviceMetadataFromCert(id.Certificate),
 		UserKind:       userKind,
+		BotName:        id.BotName,
+		BotInstanceID:  id.BotInstanceID,
 	}
 }
 
@@ -1372,6 +1252,7 @@ func (c *ServerContext) GetExecRequest() (Exec, error) {
 
 func (c *ServerContext) GetServerMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
+		ServerVersion:   teleport.Version,
 		ServerID:        c.srv.HostUUID(),
 		ServerHostname:  c.srv.GetInfo().GetHostname(),
 		ServerNamespace: c.srv.GetNamespace(),

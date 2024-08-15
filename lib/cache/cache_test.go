@@ -43,12 +43,15 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/clusterconfig"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
@@ -62,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -121,6 +125,8 @@ type testPack struct {
 	notifications           services.Notifications
 	accessMonitoringRules   services.AccessMonitoringRules
 	crownJewels             services.CrownJewels
+	databaseObjects         services.DatabaseObjects
+	spiffeFederations       *local.SPIFFEFederationService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -320,6 +326,18 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.crownJewels = crownJewelsSvc
 
+	spiffeFederationsSvc, err := local.NewSPIFFEFederationService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.spiffeFederations = spiffeFederationsSvc
+
+	databaseObjectsSvc, err := local.NewDatabaseObjectService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.databaseObjects = databaseObjectsSvc
+
 	kubeWaitingContSvc, err := local.NewKubeWaitingContainerService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -376,6 +394,8 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		Notifications:           p.notifications,
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
+		SPIFFEFederations:       p.spiffeFederations,
+		DatabaseObjects:         p.databaseObjects,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -778,6 +798,8 @@ func TestCompletenessInit(t *testing.T) {
 			Notifications:           p.notifications,
 			AccessMonitoringRules:   p.accessMonitoringRules,
 			CrownJewels:             p.crownJewels,
+			DatabaseObjects:         p.databaseObjects,
+			SPIFFEFederations:       p.spiffeFederations,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -854,6 +876,8 @@ func TestCompletenessReset(t *testing.T) {
 		Notifications:           p.notifications,
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
+		DatabaseObjects:         p.databaseObjects,
+		SPIFFEFederations:       p.spiffeFederations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1042,6 +1066,8 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Notifications:           p.notifications,
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
+		DatabaseObjects:         p.databaseObjects,
+		SPIFFEFederations:       p.spiffeFederations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1129,6 +1155,8 @@ func initStrategy(t *testing.T) {
 		Notifications:           p.notifications,
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
+		DatabaseObjects:         p.databaseObjects,
+		SPIFFEFederations:       p.spiffeFederations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1612,16 +1640,16 @@ func TestTunnelConnections(t *testing.T) {
 				LastHeartbeat: time.Now().UTC(),
 			})
 		},
-		create: modifyNoContext(p.presenceS.UpsertTunnelConnection),
+		create: modifyNoContext(p.trustS.UpsertTunnelConnection),
 		list: func(ctx context.Context) ([]types.TunnelConnection, error) {
-			return p.presenceS.GetTunnelConnections(clusterName)
+			return p.trustS.GetTunnelConnections(clusterName)
 		},
 		cacheList: func(ctx context.Context) ([]types.TunnelConnection, error) {
 			return p.cache.GetTunnelConnections(clusterName)
 		},
-		update: modifyNoContext(p.presenceS.UpsertTunnelConnection),
+		update: modifyNoContext(p.trustS.UpsertTunnelConnection),
 		deleteAll: func(ctx context.Context) error {
-			return p.presenceS.DeleteAllTunnelConnections()
+			return p.trustS.DeleteAllTunnelConnections()
 		},
 	})
 }
@@ -1716,11 +1744,11 @@ func TestRemoteClusters(t *testing.T) {
 			return types.NewRemoteCluster(name)
 		},
 		create: func(ctx context.Context, rc types.RemoteCluster) error {
-			_, err := p.presenceS.CreateRemoteCluster(ctx, rc)
+			_, err := p.trustS.CreateRemoteCluster(ctx, rc)
 			return err
 		},
 		list: func(ctx context.Context) ([]types.RemoteCluster, error) {
-			return p.presenceS.GetRemoteClusters(ctx)
+			return p.trustS.GetRemoteClusters(ctx)
 		},
 		cacheGet: func(ctx context.Context, name string) (types.RemoteCluster, error) {
 			return p.cache.GetRemoteCluster(ctx, name)
@@ -1729,11 +1757,11 @@ func TestRemoteClusters(t *testing.T) {
 			return p.cache.GetRemoteClusters(ctx)
 		},
 		update: func(ctx context.Context, rc types.RemoteCluster) error {
-			_, err := p.presenceS.UpdateRemoteCluster(ctx, rc)
+			_, err := p.trustS.UpdateRemoteCluster(ctx, rc)
 			return err
 		},
 		deleteAll: func(ctx context.Context) error {
-			return p.presenceS.DeleteAllRemoteClusters(ctx)
+			return p.trustS.DeleteAllRemoteClusters(ctx)
 		},
 	})
 }
@@ -2551,6 +2579,57 @@ func TestCrownJewel(t *testing.T) {
 	})
 }
 
+func TestDatabaseObjects(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*dbobjectv1.DatabaseObject]{
+		newResource: func(name string) (*dbobjectv1.DatabaseObject, error) {
+			return newDatabaseObject(t, name), nil
+		},
+		create: func(ctx context.Context, item *dbobjectv1.DatabaseObject) error {
+			_, err := p.databaseObjects.CreateDatabaseObject(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
+			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
+			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		deleteAll: func(ctx context.Context) error {
+			token := ""
+			var objects []*dbobjectv1.DatabaseObject
+
+			for {
+				resp, nextToken, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, token)
+				if err != nil {
+					return err
+				}
+
+				objects = append(objects, resp...)
+
+				if nextToken == "" {
+					break
+				}
+				token = nextToken
+			}
+
+			for _, object := range objects {
+				err := p.databaseObjects.DeleteDatabaseObject(ctx, object.GetMetadata().GetName())
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	})
+}
+
 // TestGlobalNotifications tests that CRUD operations on global notification resources are
 // replicated from the backend to the cache.
 func TestGlobalNotifications(t *testing.T) {
@@ -2845,7 +2924,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 	require.Len(t, nodes, nodeCount)
 
 	clock.Advance(time.Hour * 24)
-	for expired := nodeCount - expiryLimit; expired > 0; expired -= expiryLimit {
+	for expired := nodeCount - expiryLimit; expired > expiryLimit; expired -= expiryLimit {
 		// get rid of events that were emitted before clock advanced
 		drainEvents(p.eventsC)
 		// wait for next relative expiry check to run
@@ -3151,6 +3230,9 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindGlobalNotification:      types.Resource153ToLegacy(newGlobalNotification(t, "test")),
 		types.KindAccessMonitoringRule:    types.Resource153ToLegacy(newAccessMonitoringRule(t)),
 		types.KindCrownJewel:              types.Resource153ToLegacy(newCrownJewel(t, "test")),
+		types.KindDatabaseObject:          types.Resource153ToLegacy(newDatabaseObject(t, "test")),
+		types.KindAccessGraphSettings:     types.Resource153ToLegacy(newAccessGraphSettings(t)),
+		types.KindSPIFFEFederation:        types.Resource153ToLegacy(newSPIFFEFederation("test")),
 	}
 
 	for name, cfg := range cases {
@@ -3608,6 +3690,29 @@ func newCrownJewel(t *testing.T, name string) *crownjewelv1.CrownJewel {
 	}
 
 	return crownJewel
+}
+
+func newDatabaseObject(t *testing.T, name string) *dbobjectv1.DatabaseObject {
+	t.Helper()
+
+	r, err := databaseobject.NewDatabaseObject(name, &dbobjectv1.DatabaseObjectSpec{
+		Name:                name,
+		Protocol:            "postgres",
+		DatabaseServiceName: "pg",
+		ObjectKind:          "table",
+	})
+	require.NoError(t, err)
+	return r
+}
+
+func newAccessGraphSettings(t *testing.T) *clusterconfigpb.AccessGraphSettings {
+	t.Helper()
+
+	r, err := clusterconfig.NewAccessGraphSettings(&clusterconfigpb.AccessGraphSettingsSpec{
+		SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
+	})
+	require.NoError(t, err)
+	return r
 }
 
 func newUserNotification(t *testing.T, name string) *notificationsv1.Notification {

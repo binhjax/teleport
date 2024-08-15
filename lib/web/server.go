@@ -71,8 +71,9 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 type Server struct {
 	cfg ServerConfig
 
-	mu sync.Mutex
-	ln net.Listener
+	mu     sync.Mutex
+	ln     net.Listener
+	closed bool
 }
 
 // NewServer constructs a [Server] from the provided [ServerConfig].
@@ -91,12 +92,25 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 func (s *Server) Serve(l net.Listener) error {
 	s.mu.Lock()
 	s.ln = l
+	closed := s.closed
+	if closed {
+		s.ln.Close()
+	}
 	s.mu.Unlock()
+	if closed {
+		return trace.Errorf("serve called on previously closed server")
+	}
 	return trace.Wrap(s.cfg.Server.Serve(l))
 }
 
 // Close immediately closes the [http.Server].
 func (s *Server) Close() error {
+	s.mu.Lock()
+	s.closed = true
+	if s.ln != nil {
+		s.ln.Close()
+	}
+	s.mu.Unlock()
 	return trace.NewAggregate(s.cfg.Handler.Close(), s.cfg.Server.Close())
 }
 
@@ -113,7 +127,11 @@ func (s *Server) HandleConnection(ctx context.Context, conn net.Conn) error {
 // web UI will not prevent the [http.Server] from shutting down.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.mu.Lock()
-	err := s.ln.Close()
+	var err error
+	s.closed = true
+	if s.ln != nil {
+		err = s.ln.Close()
+	}
 	s.mu.Unlock()
 
 	activeConnections := s.cfg.Handler.handler.userConns.Load()

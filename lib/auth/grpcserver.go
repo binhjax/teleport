@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -77,7 +76,6 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/accessmonitoringrules/accessmonitoringrulesv1"
-	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/crownjewel/crownjewelv1"
@@ -106,6 +104,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/server/installer"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -233,16 +232,14 @@ func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *apievents.OneOf) (
 	return &emptypb.Empty{}, nil
 }
 
-var (
-	connectedResourceGauges = map[string]prometheus.Gauge{
-		constants.KeepAliveNode:                  connectedResources.WithLabelValues(constants.KeepAliveNode),
-		constants.KeepAliveKube:                  connectedResources.WithLabelValues(constants.KeepAliveKube),
-		constants.KeepAliveApp:                   connectedResources.WithLabelValues(constants.KeepAliveApp),
-		constants.KeepAliveDatabase:              connectedResources.WithLabelValues(constants.KeepAliveDatabase),
-		constants.KeepAliveDatabaseService:       connectedResources.WithLabelValues(constants.KeepAliveDatabaseService),
-		constants.KeepAliveWindowsDesktopService: connectedResources.WithLabelValues(constants.KeepAliveWindowsDesktopService),
-	}
-)
+var connectedResourceGauges = map[string]prometheus.Gauge{
+	constants.KeepAliveNode:                  connectedResources.WithLabelValues(constants.KeepAliveNode),
+	constants.KeepAliveKube:                  connectedResources.WithLabelValues(constants.KeepAliveKube),
+	constants.KeepAliveApp:                   connectedResources.WithLabelValues(constants.KeepAliveApp),
+	constants.KeepAliveDatabase:              connectedResources.WithLabelValues(constants.KeepAliveDatabase),
+	constants.KeepAliveDatabaseService:       connectedResources.WithLabelValues(constants.KeepAliveDatabaseService),
+	constants.KeepAliveWindowsDesktopService: connectedResources.WithLabelValues(constants.KeepAliveWindowsDesktopService),
+}
 
 // SendKeepAlives allows node to send a stream of keep alive requests
 func (g *GRPCServer) SendKeepAlives(stream authpb.AuthService_SendKeepAlivesServer) error {
@@ -687,6 +684,23 @@ func (g *GRPCServer) GenerateOpenSSHCert(ctx context.Context, req *authpb.OpenSS
 	}
 
 	return cert, nil
+}
+
+// AssertSystemRole is used by agents to prove that they have a given system role when their credentials
+// originate from multiple separate join tokens so that they can be issued an instance certificate that
+// encompasses all of their capabilities. This method will be deprecated once we have a more comprehensive
+// model for join token joining/replacement.
+func (g *GRPCServer) AssertSystemRole(ctx context.Context, req *authpb.SystemRoleAssertion) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.AssertSystemRole(ctx, *req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 // icsServicesToMetricName is a helper for translating service names to keepalive names for control-stream
@@ -4039,6 +4053,16 @@ func (g *GRPCServer) GenerateWindowsDesktopCert(ctx context.Context, req *authpb
 	return response, nil
 }
 
+func (g *GRPCServer) GetDesktopBootstrapScript(ctx context.Context, _ *emptypb.Empty) (*authpb.DesktopBootstrapScriptResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := auth.GetDesktopBootstrapScript(ctx)
+	return res, trace.Wrap(err)
+}
+
 // ChangeUserAuthentication implements AuthService.ChangeUserAuthentication.
 func (g *GRPCServer) ChangeUserAuthentication(ctx context.Context, req *authpb.ChangeUserAuthenticationRequest) (*authpb.ChangeUserAuthenticationResponse, error) {
 	auth, err := g.authenticate(ctx)
@@ -4497,7 +4521,7 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceReques
 		if trace.IsNotFound(err) {
 			switch req.Name {
 			case installers.InstallerScriptName:
-				return installers.DefaultInstaller, nil
+				return installer.DefaultInstaller, nil
 			case installers.InstallerScriptNameAgentless:
 				return installers.DefaultAgentlessInstaller, nil
 			}
@@ -4523,7 +4547,7 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 	}
 	var installersV1 []*types.InstallerV1
 	defaultInstallers := map[string]*types.InstallerV1{
-		installers.InstallerScriptName:          installers.DefaultInstaller,
+		types.DefaultInstallerScriptName:        installer.DefaultInstaller,
 		installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller,
 	}
 
@@ -5188,6 +5212,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	machineidv1pb.RegisterBotServiceServer(server, botService)
 
+	botInstanceService, err := machineidv1.NewBotInstanceService(machineidv1.BotInstanceServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services.BotInstance,
+		Clock:      cfg.AuthServer.GetClock(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating bot instance service")
+	}
+	machineidv1pb.RegisterBotInstanceServiceServer(server, botInstanceService)
+
 	workloadIdentityService, err := machineidv1.NewWorkloadIdentityService(machineidv1.WorkloadIdentityServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Cache:      cfg.AuthServer.Cache,
@@ -5265,19 +5299,19 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	trustpb.RegisterTrustServiceServer(server, trust)
 
-	// Initialize and register the assist service.
-	assistSrv, err := assistv1.NewService(&assistv1.ServiceConfig{
-		Backend:        cfg.AuthServer.Services,
-		Embeddings:     cfg.AuthServer.embeddingsRetriever,
-		Embedder:       cfg.AuthServer.embedder,
-		Authorizer:     cfg.Authorizer,
-		ResourceGetter: cfg.AuthServer,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	assist.RegisterAssistServiceServer(server, assistSrv)
-	assist.RegisterAssistEmbeddingServiceServer(server, assistSrv)
+	// // Initialize and register the assist service.
+	// assistSrv, err := assistv1.NewService(&assistv1.ServiceConfig{
+	// 	Backend:        cfg.AuthServer.Services,
+	// 	Embeddings:     cfg.AuthServer.embeddingsRetriever,
+	// 	Embedder:       cfg.AuthServer.embedder,
+	// 	Authorizer:     cfg.Authorizer,
+	// 	ResourceGetter: cfg.AuthServer,
+	// })
+	// if err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
+	// assist.RegisterAssistServiceServer(server, assistSrv)
+	// assist.RegisterAssistEmbeddingServiceServer(server, assistSrv)
 
 	fmt.Printf("binhnt.auth.grpcserver: Create serverWithNopRole \n")
 	// create server with no-op role to pass to JoinService server
@@ -5303,6 +5337,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Cache:           cfg.AuthServer.Cache,
 		KeyStoreManager: cfg.AuthServer.GetKeyStore(),
 		Clock:           cfg.AuthServer.clock,
+		Emitter:         cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5325,6 +5360,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
 		Clock:      cfg.AuthServer.clock,
+		Emitter:    cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5377,6 +5413,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			Address:  cfg.APIConfig.AccessGraph.Address,
 			Insecure: cfg.APIConfig.AccessGraph.Insecure,
 		},
+		ReadOnlyCache: cfg.AuthServer.ReadOnlyCache,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5409,6 +5446,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	notificationsServer, err := notifications.NewService(notifications.ServiceConfig{
 		Authorizer:              cfg.Authorizer,
 		Backend:                 cfg.AuthServer.Services,
+		Clock:                   cfg.AuthServer.GetClock(),
 		UserNotificationCache:   cfg.AuthServer.UserNotificationCache,
 		GlobalNotificationCache: cfg.AuthServer.GlobalNotificationCache,
 	})

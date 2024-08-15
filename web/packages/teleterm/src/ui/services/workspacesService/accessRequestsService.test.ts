@@ -37,6 +37,11 @@ function getMockPendingResourceAccessRequest(): PendingAccessRequest {
   const server = makeServer();
   const app1 = makeApp();
   const app2 = makeApp({ uri: `${rootClusterUri}/apps/foo2`, name: 'foo2' });
+  const samlApp = makeApp({
+    uri: `${rootClusterUri}/samlapp`,
+    name: 'samlapp',
+    samlApp: true,
+  });
   const kube = makeKube();
   const database = makeDatabase();
 
@@ -48,6 +53,7 @@ function getMockPendingResourceAccessRequest(): PendingAccessRequest {
       [app2.uri, { kind: 'app', resource: app2 }],
       [kube.uri, { kind: 'kube', resource: kube }],
       [database.uri, { kind: 'database', resource: database }],
+      [samlApp.uri, { kind: 'app', resource: samlApp }],
     ]),
   };
 }
@@ -113,7 +119,7 @@ test('getAddedItemsCount() returns added resource count for pending request', ()
   const { accessRequestsService: service } = getTestSetup(
     getMockPendingResourceAccessRequest()
   );
-  expect(service.getAddedItemsCount()).toBe(5);
+  expect(service.getAddedItemsCount()).toBe(6);
   service.clearPendingAccessRequest();
   expect(service.getAddedItemsCount()).toBe(0);
 });
@@ -282,6 +288,39 @@ test('updates the request when the user tries to mix roles with resources and ag
     hostname: 'foo1',
   });
   await accessRequestsService.addOrRemoveResource({
+    kind: 'server',
+    resource: server,
+  });
+
+  const pendingRequest = accessRequestsService.getPendingAccessRequest();
+  expect(
+    pendingRequest.kind === 'resource' &&
+      pendingRequest.resources.get(server.uri)
+  ).toStrictEqual({
+    kind: 'server',
+    resource: {
+      hostname: server.hostname,
+      uri: server.uri,
+    },
+  });
+});
+
+test('adding the same resource twice with addResource does not toggle it', async () => {
+  const { accessRequestsService } = getTestSetup(
+    getMockPendingResourceAccessRequest()
+  );
+
+  const server = makeServer({
+    uri: `/clusters/${rootClusterUri}/servers/foo1`,
+    hostname: 'foo1',
+  });
+
+  // Try to add the same resource twice.
+  await accessRequestsService.addResource({
+    kind: 'server',
+    resource: server,
+  });
+  await accessRequestsService.addResource({
     kind: 'server',
     resource: server,
   });
