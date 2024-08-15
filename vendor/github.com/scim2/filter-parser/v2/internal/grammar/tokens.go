@@ -1,5 +1,0 @@
-package grammar
-
-const (
-	SP = ' '
-)

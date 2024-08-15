@@ -9,7 +9,8 @@ default.etcd
 build
 # web asset directory
 /lib/web/build
-
+vendor
+vendor/*
 # usually release tarballs get in the way
 *.gz
 *.zip
