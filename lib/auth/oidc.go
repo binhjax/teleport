@@ -20,6 +20,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 
 	"github.com/gravitational/trace"
@@ -84,6 +85,7 @@ func (a *Server) UpdateOIDCConnector(ctx context.Context, connector types.OIDCCo
 
 // CreateOIDCConnector creates a new OIDC connector.
 func (a *Server) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	fmt.Printf("binhnt.oidc.CreateOIDCConnector: start %+v \n", connector)
 	created, err := a.Services.CreateOIDCConnector(ctx, connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -125,15 +127,22 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 }
 
 func (a *Server) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	fmt.Printf("binhnt.oidc.CreateOIDCAuthRequest: start %+v \n", req)
+
 	if a.oidcAuthService == nil {
+		fmt.Printf("binhnt.oidc.CreateOIDCAuthRequest: oidcAuthService not init \n")
+
 		return nil, errOIDCNotImplemented
 	}
 
+	fmt.Printf("binhnt.oidc.CreateOIDCAuthRequest: call CreateOIDCAuthRequest \n")
 	rq, err := a.oidcAuthService.CreateOIDCAuthRequest(ctx, req)
 	return rq, trace.Wrap(err)
 }
 
 func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error) {
+	fmt.Printf("binhnt.oidc.ValidateOIDCAuthCallback: start %+v \n", q)
+
 	if a.oidcAuthService == nil {
 		return nil, errOIDCNotImplemented
 	}

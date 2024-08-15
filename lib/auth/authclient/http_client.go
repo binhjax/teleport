@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -695,6 +696,8 @@ type OIDCAuthRawResponse struct {
 
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 func (c *HTTPClient) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
+	fmt.Printf("auth.authclient.httpclient.ValidateOIDCAuthCallback: start  \n")
+
 	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "validate"), ValidateOIDCAuthCallbackReq{
 		Query: q,
 	})
@@ -827,8 +830,9 @@ type githubAuthRawResponse struct {
 	HostSigners []json.RawMessage `json:"host_signers"`
 }
 
-// ValidateGithubAuthCallback validates Github auth callback returned from redirect
+// validates Github auth callback returned from redirect
 func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
+	fmt.Printf("binhnt.auth.authclient.http_client: ValidateGithubAuthCallback %+v \n", q)
 	out, err := c.PostJSON(ctx, c.Endpoint("github", "requests", "validate"),
 		validateGithubAuthCallbackReq{Query: q})
 	if err != nil {

@@ -237,6 +237,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		return nil, trace.Wrap(err)
 	}
 
+	fmt.Printf("binhnt.config.fileconf: create AuthServer \n")
 	if flags.Version == defaults.TeleportConfigVersionV3 {
 		if flags.AuthServer != "" && flags.ProxyAddress != "" {
 			return nil, trace.BadParameter("--proxy and --auth-server cannot both be set")

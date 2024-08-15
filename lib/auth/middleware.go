@@ -195,6 +195,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 			return trace.Wrap(cfg.AuthServer.UpsertClusterAlert(ctx, a))
 		},
 	}
+	fmt.Printf("binhnt.auth.middleware.NewTLSServer \n")
 
 	apiServer, err := NewAPIServer(&cfg.APIConfig)
 	if err != nil {
@@ -511,6 +512,7 @@ func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context
 
 	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(connState))
 	ctx = authz.ContextWithClientSrcAddr(ctx, peerInfo.Addr)
+	// fmt.Printf("binhnt.auth.middleware.withAuthenticatedUser: set ContextWithUser %+v \n", identityGetter)
 	ctx = authz.ContextWithUser(ctx, identityGetter)
 
 	return ctx, nil
@@ -599,6 +601,7 @@ func (a *authenticatedStream) Context() context.Context {
 
 // GetUser returns authenticated user based on request TLS metadata
 func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGetter, error) {
+
 	peers := connState.PeerCertificates
 	if len(peers) > 1 {
 		// when turning intermediaries on, don't forget to verify
@@ -625,6 +628,8 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGette
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// fmt.Printf("binhnt.auth.middleware.GetUser: groups = %+v, TeleportCluster=%s \n", identity.Groups, identity.TeleportCluster)
+
 	// Since 5.0, teleport TLS certs include the origin teleport cluster in the
 	// subject (identity). Before 5.0, origin teleport cluster was inferred
 	// from the cert issuer.
@@ -655,6 +660,8 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGette
 	// by creating a cert pool constructed of trusted certificate authorities
 	// 2. Remote CAs are not allowed to have the same cluster name
 	// as the local certificate authority
+	// fmt.Printf("binhnt.auth.middleware.GetUser: certClusterName = %s , a.ClusterName = %s  \n", certClusterName, a.ClusterName)
+
 	if certClusterName != a.ClusterName {
 		// make sure that this user does not have system role
 		// the local auth server can not truste remote servers
@@ -686,12 +693,16 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGette
 			Identity:              *identity,
 		}, nil
 	}
+
+	// fmt.Printf("binhnt.auth.middleware.GetUser: identity %+v \n", identity)
+
 	// otherwise assume that is a local role, no need to pass the roles
 	// as it will be fetched from the local database
 	return newLocalUserFromIdentity(*identity), nil
 }
 
 func findPrimarySystemRole(roles []string) *types.SystemRole {
+
 	for _, role := range roles {
 		systemRole := types.SystemRole(role)
 		err := systemRole.Check()

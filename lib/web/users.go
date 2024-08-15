@@ -20,6 +20,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -62,6 +63,8 @@ func (h *Handler) getUsersHandle(w http.ResponseWriter, r *http.Request, params 
 }
 
 func (h *Handler) getUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	fmt.Printf("binhnt.web.users.getUserHandle: start %+v  \n", params)
+
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)

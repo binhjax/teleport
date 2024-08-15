@@ -1,0 +1,43 @@
+{
+    "auth": {
+        "second_factor": "otp",
+        "providers": [
+            {
+                "name": "oidc_connector",
+                "displayName": "oidc_connector",
+                "type": "oidc",
+                "url": "/v1/webapi/oidc/login/web?connector_id=:providerName\u0026redirect_url=:redirect"
+            }
+        ],
+        "localAuthEnabled": true,
+        "authType": "oidc",
+        "preferredLocalMfa": "otp",
+        "privateKeyPolicy": "none",
+        "motd": ""
+    },
+    "canJoinSessions": true,
+    "proxyCluster": "bb918431615f",
+    "ui": {},
+    "automaticUpgrades": false,
+    "assistEnabled": false,
+    "hideInaccessibleFeatures": false,
+    "customTheme": "",
+    "isTeam": false,
+    "isIgsEnabled": false,
+    "featureLimits": {
+        "accessListCreateLimit": 0,
+        "accessMonitoringMaxReportRangeLimit": 0,
+        "AccessRequestMonthlyRequestLimit": 0
+    },
+    "questionnaire": false,
+    "isStripeManaged": false,
+    "externalAuditStorage": false,
+    "premiumSupport": false,
+    "joinActiveSessions": true,
+    "accessRequests": false,
+    "trustedDevices": false,
+    "oidc": true,
+    "saml": false,
+    "mobileDeviceManagement": false,
+    "edition": "oss"
+}

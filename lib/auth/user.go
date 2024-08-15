@@ -26,6 +26,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -41,6 +42,7 @@ import (
 // TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.CreateUser] instead.
 func (a *Server) CreateUser(ctx context.Context, user types.User) (types.User, error) {
+	// fmt.Printf("binhnt.auth.user.CreateUser: create user in backend  %+v \n", user)
 	if user.GetCreatedBy().IsEmpty() {
 		user.SetCreatedBy(types.CreatedBy{
 			User: types.UserRef{Name: authz.ClientUsername(ctx)},
@@ -48,8 +50,12 @@ func (a *Server) CreateUser(ctx context.Context, user types.User) (types.User, e
 		})
 	}
 
+	// fmt.Printf("binhnt.auth.user.CreateUser: call Services.CreateUser \n")
+
 	created, err := a.Services.CreateUser(ctx, user)
 	if err != nil {
+		fmt.Printf("binhnt.auth.user.CreateUser: Services.CreateUser failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -59,6 +65,7 @@ func (a *Server) CreateUser(ctx context.Context, user types.User) (types.User, e
 	} else {
 		connectorName = created.GetCreatedBy().Connector.ID
 	}
+	fmt.Printf("binhnt.auth.user.CreateUser: connectorName = %s \n", connectorName)
 
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.UserCreate{
 		Metadata: apievents.Metadata{
@@ -74,6 +81,7 @@ func (a *Server) CreateUser(ctx context.Context, user types.User) (types.User, e
 		Roles:              created.GetRoles(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
+
 		log.WithError(err).Warn("Failed to emit user create event.")
 	}
 

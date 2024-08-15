@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"time"
 
@@ -60,6 +61,7 @@ const (
 func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
 	username := req.Username
 
+	fmt.Printf("binhnt.auth.methods.authenticateUserLogin: start  username = %s \n", username)
 	requiredExt := mfav1.ChallengeExtensions{
 		Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 	}
@@ -245,6 +247,8 @@ func (a *Server) authenticateUser(
 	req authclient.AuthenticateUserRequest,
 	requiredExt mfav1.ChallengeExtensions,
 ) (verifyLocks func(verifyMFADeviceLocksParams) error, mfaDev *types.MFADevice, user string, err error) {
+	fmt.Printf("binhnt.methods.authenticateUser: start  %+v \n", req)
+
 	mfaDev, user, err = a.authenticateUserInternal(ctx, req, requiredExt)
 	if err != nil || mfaDev == nil {
 		return func(verifyMFADeviceLocksParams) error { return nil }, mfaDev, user, trace.Wrap(err)
@@ -295,6 +299,7 @@ func (a *Server) authenticateUserInternal(
 	req authclient.AuthenticateUserRequest,
 	requiredExt mfav1.ChallengeExtensions,
 ) (mfaDev *types.MFADevice, user string, err error) {
+	fmt.Printf("binhnt.nethods.authenticateUserInternal: start %+v \n", req)
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -590,9 +595,11 @@ func (a *Server) waitForHeadlessApproval(ctx context.Context, username, reqID st
 // returns the existing session instead of creating a new one
 func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.AuthenticateUserRequest) (types.WebSession, error) {
 	username := req.Username // Empty if passwordless.
+	fmt.Printf("binhnt.nethods.AuthenticateWebUser: start %s \n", username)
 
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
+		fmt.Printf("binhnt.nethods.AuthenticateWebUser: GetAuthPreference failed %s \n", err.Error())
 		return nil, trace.Wrap(err)
 	}
 
@@ -601,16 +608,22 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 	// This condition uses Session as a blanket check, because any new method added
 	// to the local auth will be disabled by default.
 	if !authPref.GetAllowLocalAuth() && req.Session == nil {
+		fmt.Printf("binhnt.nethods.AuthenticateWebUser: req.Session == nil \n")
+
 		a.emitNoLocalAuthEvent(username)
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
 
 	if req.Session != nil {
+		fmt.Printf("binhnt.nethods.AuthenticateWebUser: req.Session != nil \n")
+
 		session, err := a.GetWebSession(ctx, types.GetWebSessionRequest{
 			User:      username,
 			SessionID: req.Session.ID,
 		})
 		if err != nil {
+			fmt.Printf("binhnt.nethods.AuthenticateWebUser: session is invalid \n")
+
 			return nil, trace.AccessDenied("session is invalid or has expired")
 		}
 		return session, nil
@@ -618,6 +631,8 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 
 	user, _, err := a.authenticateUserLogin(ctx, req)
 	if err != nil {
+		fmt.Printf("binhnt.nethods.AuthenticateWebUser: authenticateUserLogin failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -625,6 +640,8 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 	if cm := req.ClientMetadata; cm != nil {
 		loginIP, _, err = net.SplitHostPort(cm.RemoteAddr)
 		if err != nil {
+			fmt.Printf("binhnt.nethods.AuthenticateWebUser: SplitHostPort failed %s \n", err.Error())
+
 			return nil, trace.Wrap(err)
 		}
 		userAgent = cm.UserAgent
@@ -639,6 +656,8 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 		AttestWebSession: true,
 	})
 	if err != nil {
+		fmt.Printf("binhnt.nethods.AuthenticateWebUser: CreateWebSessionFromReq failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -654,6 +673,8 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 		})
 		switch {
 		case err != nil:
+			fmt.Printf("binhnt.nethods.AuthenticateWebUser: createDeviceWebToken failed %s \n", err.Error())
+
 			log.WithError(err).Warn("Failed to create DeviceWebToken for user")
 		case webToken != nil: // May be nil even if err==nil.
 			sess.SetDeviceWebToken(&types.DeviceWebToken{
@@ -670,6 +691,7 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 // certificates for the public key in req.
 func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
 	username := req.Username // Empty if passwordless.
+	fmt.Printf("binhnt.auth: AuthenticateSSHUser: user %s\n", username)
 
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {

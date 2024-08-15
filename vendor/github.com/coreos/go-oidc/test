@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -e
+
+# Filter out any files with a !golint build tag.
+LINTABLE=$( go list -tags=golint -f '
+  {{- range $i, $file := .GoFiles -}}
+    {{ $file }} {{ end }}
+  {{ range $i, $file := .TestGoFiles -}}
+    {{ $file }} {{ end }}' github.com/coreos/go-oidc )
+
+go test -v -race github.com/coreos/go-oidc/...
+if ! golint $LINTABLE &> /dev/null
+then
+  echo "golint not installed, skipping linting"
+fi
+go vet github.com/coreos/go-oidc/...
+go build -v ./example/...

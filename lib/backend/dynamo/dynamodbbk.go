@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -53,6 +54,7 @@ import (
 )
 
 func init() {
+	fmt.Printf("binhnt.backend.dynamo.init:  call backend.MustRegister: %s \n", GetName())
 	backend.MustRegister(GetName(), func(ctx context.Context, p backend.Params) (backend.Backend, error) {
 		return New(ctx, p)
 	})

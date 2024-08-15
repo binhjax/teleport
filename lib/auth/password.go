@@ -21,6 +21,7 @@ package auth
 import (
 	"context"
 	"crypto/subtle"
+	"fmt"
 	"net/mail"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -48,6 +49,8 @@ var fakePasswordHash = []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJH
 
 // ChangeUserAuthentication implements AuthService.ChangeUserAuthentication.
 func (a *Server) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
+	fmt.Printf("binhnt.auth.password.ChangeUserAuthentication: start \n")
+
 	user, err := a.changeUserAuthentication(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -114,6 +117,8 @@ func (a *Server) resetPassword(ctx context.Context, username string) error {
 
 // ChangePassword updates users password based on the old password.
 func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error {
+	fmt.Printf("binhnt.auth.password.ChangePassword: start \n")
+
 	// validate new password
 	if err := services.VerifyPassword(req.NewPassword); err != nil {
 		return trace.Wrap(err)
@@ -144,6 +149,8 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 			Token:    req.SecondFactorToken,
 		}
 	}
+	fmt.Printf("binhnt.auth.password.ChangePassword: start \n")
+
 	verifyMFALocks, _, _, err := a.authenticateUser(ctx, authReq, requiredExt)
 	if err != nil {
 		return trace.Wrap(err)
@@ -174,6 +181,8 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 // user's password state as SET if necessary.  Used in case of SSH or Web
 // authentication, when token has been validated.
 func (a *Server) checkPasswordWOToken(ctx context.Context, user string, password []byte) error {
+	fmt.Printf("binhnt.auth.password.checkPasswordWOToken: start \n")
+
 	const errMsg = "invalid username or password"
 
 	hash, err := a.GetPasswordHash(user)
@@ -307,6 +316,8 @@ func (a *Server) checkTOTP(ctx context.Context, user, otpToken string, dev *type
 }
 
 func (a *Server) changeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (types.User, error) {
+	fmt.Printf("binhnt.password.changeUserAuthentication: start \n")
+
 	// Get cluster configuration and check if local auth is allowed.
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {

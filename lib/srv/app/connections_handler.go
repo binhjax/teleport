@@ -26,6 +26,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -593,6 +594,8 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	fmt.Printf("binhnt.srv.app.connections_handler: handleConnection user %+v \n", user)
 
 	ctx = authz.ContextWithUser(ctx, user)
 	ctx = authz.ContextWithClientSrcAddr(ctx, conn.RemoteAddr())

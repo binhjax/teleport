@@ -26,6 +26,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"os"
 	"sort"
 	"strconv"
@@ -56,6 +57,7 @@ import (
 )
 
 func init() {
+	fmt.Printf("binhnt.backend.etcdbk.init:  call backend.MustRegister: %s \n", GetName())
 	backend.MustRegister(GetName(), func(ctx context.Context, p backend.Params) (backend.Backend, error) {
 		return New(ctx, p)
 	})

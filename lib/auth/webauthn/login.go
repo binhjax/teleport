@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"sort"
 	"time"
@@ -194,6 +195,8 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 }
 
 func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
+	fmt.Printf("binhnt.login.getWebID: start \n")
+
 	wla, err := f.identity.GetWebauthnLocalAuth(ctx, user)
 	switch {
 	case trace.IsNotFound(err):

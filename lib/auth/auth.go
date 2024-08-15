@@ -163,30 +163,45 @@ type ServerOption func(*Server) error
 
 // NewServer creates and configures a new Server instance
 func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
+	// fmt.Printf("binhnt.auth.NewServer: new  %+v  with %+v\n", cfg, opts)
+
 	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if cfg.Trust == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewCAService. \n")
+
 		cfg.Trust = local.NewCAService(cfg.Backend)
 	}
 	if cfg.Presence == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewPresenceService. \n")
+
 		cfg.Presence = local.NewPresenceService(cfg.Backend)
 	}
 	if cfg.Provisioner == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewProvisioningService. \n")
+
 		cfg.Provisioner = local.NewProvisioningService(cfg.Backend)
 	}
 	if cfg.Identity == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewIdentityService. \n")
 		cfg.Identity = local.NewIdentityService(cfg.Backend)
 	}
 	if cfg.Access == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewAccessService. \n")
+
 		cfg.Access = local.NewAccessService(cfg.Backend)
 	}
 	if cfg.DynamicAccessExt == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewDynamicAccessService. \n")
+
 		cfg.DynamicAccessExt = local.NewDynamicAccessService(cfg.Backend)
 	}
 	if cfg.ClusterConfiguration == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewClusterConfigurationService. \n")
+
 		clusterConfig, err := local.NewClusterConfigurationService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -227,15 +242,21 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.Streamer = events.NewDiscardStreamer()
 	}
 	if cfg.WindowsDesktops == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewWindowsDesktopService. \n")
+
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
 	}
 	if cfg.SAMLIdPServiceProviders == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local SAMLIdPServiceProviders. \n")
+
 		cfg.SAMLIdPServiceProviders, err = local.NewSAMLIdPServiceProviderService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 	if cfg.UserGroups == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewUserGroupService. \n")
+
 		cfg.UserGroups, err = local.NewUserGroupService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -243,93 +264,130 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	if cfg.CrownJewels == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewCrownJewelsService. \n")
 		cfg.CrownJewels, err = local.NewCrownJewelsService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 	if cfg.ConnectionsDiagnostic == nil {
+		fmt.Printf("binhnt.auth.NewServer: NewConnectionsDiagnosticService. \n")
+
 		cfg.ConnectionsDiagnostic = local.NewConnectionsDiagnosticService(cfg.Backend)
 	}
 	if cfg.SessionTrackerService == nil {
+		fmt.Printf("binhnt.auth.NewServer: NewSessionTrackerService. \n")
+
 		cfg.SessionTrackerService, err = local.NewSessionTrackerService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 	if cfg.AssertionReplayService == nil {
+		fmt.Printf("binhnt.auth.NewServer: NewAssertionReplayService. \n")
+
 		cfg.AssertionReplayService = local.NewAssertionReplayService(cfg.Backend)
 	}
 	if cfg.TraceClient == nil {
+		fmt.Printf("binhnt.auth.NewServer: tracing.NewNoopClient. \n")
+
 		cfg.TraceClient = tracing.NewNoopClient()
 	}
 	if cfg.UsageReporter == nil {
+		fmt.Printf("binhnt.auth.NewServer: usagereporter.DiscardUsageReporter. \n")
+
 		cfg.UsageReporter = usagereporter.DiscardUsageReporter{}
 	}
 	if cfg.Okta == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewOktaService. \n")
+
 		cfg.Okta, err = local.NewOktaService(cfg.Backend, cfg.Clock)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 	if cfg.SecReports == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewSecReportsService. \n")
+
 		cfg.SecReports, err = local.NewSecReportsService(cfg.Backend, cfg.Clock)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 	if cfg.AccessLists == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewAccessListService. \n")
+
 		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 	if cfg.DatabaseObjectImportRules == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewDatabaseObjectImportRuleService. \n")
+
 		cfg.DatabaseObjectImportRules, err = local.NewDatabaseObjectImportRuleService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 	if cfg.DatabaseObjects == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewDatabaseObjectService. \n")
+
 		cfg.DatabaseObjects, err = local.NewDatabaseObjectService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 	if cfg.PluginData == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewPluginData. \n")
+
 		cfg.PluginData = local.NewPluginData(cfg.Backend, cfg.DynamicAccessExt)
 	}
 	if cfg.Integrations == nil {
+		fmt.Printf("binhnt.auth.NewServer: NewIntegrationsService. \n")
+
 		cfg.Integrations, err = local.NewIntegrationsService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 	if cfg.DiscoveryConfigs == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewDiscoveryConfigService. \n")
+
 		cfg.DiscoveryConfigs, err = local.NewDiscoveryConfigService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 	if cfg.Embeddings == nil {
+		fmt.Printf("binhnt.auth.NewServer: NewEmbeddingsService. \n")
+
 		cfg.Embeddings = local.NewEmbeddingsService(cfg.Backend)
 	}
 	if cfg.UserPreferences == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewUserPreferencesService. \n")
+
 		cfg.UserPreferences = local.NewUserPreferencesService(cfg.Backend)
 	}
 	if cfg.UserLoginState == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewUserLoginStateService. \n")
+
 		cfg.UserLoginState, err = local.NewUserLoginStateService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 	if cfg.CloudClients == nil {
+		fmt.Printf("binhnt.auth.NewServer: use cloud NewClients. \n")
+
 		cfg.CloudClients, err = cloud.NewClients()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 	if cfg.Notifications == nil {
+		fmt.Printf("binhnt.auth.NewServer: NewNotificationsService. \n")
+
 		cfg.Notifications, err = local.NewNotificationsService(cfg.Backend, cfg.Clock)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -364,12 +422,17 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.KeyStoreConfig.Software.RSAKeyPairSource = native.GenerateKeyPair
 	}
 	cfg.KeyStoreConfig.Logger = log
+
+	fmt.Printf("binhnt.auth.NewServer: keystore.NewManager. \n")
+
 	keyStore, err := keystore.NewManager(context.Background(), cfg.KeyStoreConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if cfg.KubeWaitingContainers == nil {
+		fmt.Printf("binhnt.auth.NewServer: local.NewKubeWaitingContainerService. \n")
+
 		cfg.KubeWaitingContainers, err = local.NewKubeWaitingContainerService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -377,6 +440,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	if cfg.AccessMonitoringRules == nil {
+		fmt.Printf("binhnt.auth.NewServer: use local NewAccessMonitoringRulesService. \n")
+
 		cfg.AccessMonitoringRules, err = local.NewAccessMonitoringRulesService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -448,6 +513,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		embedder:                cfg.EmbeddingClient,
 		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
 	}
+	oidcAuthService := NewOIDCAuthService(services, &as)
+	as.SetOIDCService(oidcAuthService)
+
 	as.inventory = inventory.NewController(&as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
 		inventory.WithOnConnect(func(s string) {
@@ -658,6 +726,8 @@ func (r *Services) CrownJewelClient() services.CrownJewels {
 
 // UserLoginStateClient returns the user login state client.
 func (r *Services) UserLoginStateClient() services.UserLoginStates {
+	fmt.Printf("binhnt.auth: UserLoginStateClient\n")
+
 	return r
 }
 
@@ -994,6 +1064,7 @@ type Server struct {
 // connector implementation. If a SAMLService has already been registered, this
 // will override the previous registration.
 func (a *Server) SetSAMLService(svc SAMLService) {
+	fmt.Printf("binhnt.auth.SetSAMLService: start")
 	a.samlAuthService = svc
 }
 
@@ -1001,6 +1072,7 @@ func (a *Server) SetSAMLService(svc SAMLService) {
 // connector implementation. If a OIDCService has already been registered, this
 // will override the previous registration.
 func (a *Server) SetOIDCService(svc OIDCService) {
+	fmt.Printf("binhnt.auth.SetSAMLService: start %+v \n", svc)
 	a.oidcAuthService = svc
 }
 
@@ -6078,6 +6150,8 @@ func MFARequiredToBool(m proto.MFARequired) (required bool) {
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (resp *proto.IsMFARequiredResponse, err error) {
+	fmt.Printf("binhnt.auth.isMFARequired: start")
+
 	// Assign Required as a function of MFARequired.
 	defer func() {
 		if resp != nil {
@@ -6785,6 +6859,7 @@ func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAut
 
 // GetLicense return the license used the start the teleport enterprise auth server
 func (a *Server) GetLicense(ctx context.Context) (string, error) {
+	fmt.Printf("binhnt.auth.GetLicense: start")
 	if modules.GetModules().Features().Cloud {
 		return "", trace.AccessDenied("license cannot be downloaded on Cloud")
 	}
@@ -6797,6 +6872,7 @@ func (a *Server) GetLicense(ctx context.Context) (string, error) {
 // GetHeadlessAuthenticationFromWatcher gets a headless authentication from the headless
 // authentication watcher.
 func (a *Server) GetHeadlessAuthenticationFromWatcher(ctx context.Context, username, name string) (*types.HeadlessAuthentication, error) {
+	fmt.Printf("binhnt.auth.GetHeadlessAuthenticationFromWatcher: start")
 	sub, err := a.headlessAuthenticationWatcher.Subscribe(ctx, username, name)
 	if err != nil {
 		return nil, trace.Wrap(err)

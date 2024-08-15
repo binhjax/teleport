@@ -224,12 +224,19 @@ func (c *SessionContext) GetClientConnection() *grpc.ClientConn {
 // returned.
 func (c *SessionContext) GetUserClient(ctx context.Context, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
 	// if we're trying to access the local cluster, pass back the local client.
+
 	if c.cfg.RootClusterName == site.GetName() {
+		fmt.Printf("binhnt.web.session.GetUserClient: c.cfg.RootClusterName == site.GetName \n")
+
 		return c.cfg.RootClient, nil
 	}
 
 	// return the client for the requested remote site
 	clt, err := c.remoteClient(ctx, site)
+	if err != nil {
+		fmt.Printf("binhnt.web.session.GetUserClient: remoteClient failed %s  \n", err.Error())
+
+	}
 	return clt, trace.Wrap(err)
 }
 
@@ -496,17 +503,27 @@ func (c *SessionContext) GetX509Certificate() (*x509.Certificate, error) {
 // GetUserAccessChecker returns AccessChecker derived from the SSH certificate
 // associated with this session.
 func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) {
+	fmt.Printf("binhnt.web.session.GetUserAccessChecker: start \n")
+
 	cert, err := c.GetSSHCertificate()
 	if err != nil {
+		fmt.Printf("binhnt.web.session.GetUserAccessChecker: GetSSHCertificate failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
 	accessInfo, err := services.AccessInfoFromLocalCertificate(cert)
 	if err != nil {
+		fmt.Printf("binhnt.web.session.GetUserAccessChecker: AccessInfoFromLocalCertificate failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
 	accessChecker, err := services.NewAccessChecker(accessInfo, c.cfg.RootClusterName, c.cfg.UnsafeCachedAuthClient)
+	if err != nil {
+		fmt.Printf("binhnt.web.session.GetUserAccessChecker: NewAccessChecker failed %s \n", err.Error())
+	}
+
 	return accessChecker, trace.Wrap(err)
 }
 
@@ -564,6 +581,7 @@ func (c *SessionContext) getToken() (types.WebToken, error) {
 		Token: c.cfg.Session.GetBearerToken(),
 	})
 	if err != nil {
+		fmt.Printf("binhnt.web.session.getToken: NewWebToken failed %s \n", err.Error())
 		return nil, trace.Wrap(err)
 	}
 	return t, nil
@@ -982,6 +1000,8 @@ func (s *sessionCache) ValidateTrustedCluster(ctx context.Context, validateReque
 // getOrCreateSession gets the SessionContext for the user and session ID. If one does
 // not exist, then a new one is created.
 func (s *sessionCache) getOrCreateSession(ctx context.Context, user, sessionID string) (*SessionContext, error) {
+	fmt.Printf("binhnt.web.session.sessionCachegetOrCreateSession:  sessionID %s \n", sessionID)
+
 	key := sessionKey(user, sessionID)
 
 	// Use sessionGroup to prevent multiple requests from racing to create a SessionContext.
@@ -1137,10 +1157,12 @@ func (s *sessionCache) newSessionContext(ctx context.Context, user, sessionID st
 }
 
 func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session types.WebSession) (*SessionContext, error) {
+	// fmt.Printf("binnt.web.session.sessionCache.newSessionContextFromSession: start %+v \n", session)
 	tlsConfig, err := s.tlsConfig(ctx, session.GetTLSCert(), session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// fmt.Printf("binnt.web.session.sessionCache.newSessionContextFromSession: authServers %+v \n", s.authServers)
 
 	userClient, err := authclient.NewClient(apiclient.Config{
 		Addrs:                utils.NetAddrsToStrings(s.authServers),

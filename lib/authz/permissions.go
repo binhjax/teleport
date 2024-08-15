@@ -126,6 +126,8 @@ type AuthorizerFunc func(ctx context.Context) (*Context, error)
 
 // Authorize calls f(ctx).
 func (f AuthorizerFunc) Authorize(ctx context.Context) (*Context, error) {
+	fmt.Printf("authz.permissions.AuthorizerFunc.Authorize: start \n")
+
 	return f(ctx)
 }
 
@@ -352,6 +354,7 @@ func (c *Context) GetDisconnectCertExpiry(authPref types.AuthPreference) time.Ti
 
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error) {
+	// fmt.Printf("authz.permissions.authorizer.Authorize: start \n")
 	defer func() {
 		if err != nil {
 			err = a.convertAuthorizerError(err)
@@ -363,20 +366,30 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 	}
 	userI, err := UserFromContext(ctx)
 	if err != nil {
+		fmt.Printf("authz.permissions.authorizer.Authorize: UserFromContext failed %s  \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
+	// fmt.Printf("authz.permissions.authorizer.Authorize: userI= %+v \n", userI.Role)
+
 	authContext, err := a.fromUser(ctx, userI)
 	if err != nil {
+		fmt.Printf("authz.permissions.authorizer.Authorize: fromUser failed %s  \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
 	if err := CheckIPPinning(ctx, authContext.Identity.GetIdentity(), authContext.Checker.PinSourceIP(), a.logger); err != nil {
+		fmt.Printf("authz.permissions.authorizer.Authorize: CheckIPPinning failed %s  \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
 	// Enforce applicable locks.
 	authPref, err := a.accessPoint.GetAuthPreference(ctx)
 	if err != nil {
+		fmt.Printf("authz.permissions.authorizer.Authorize: GetAuthPreference failed %s  \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 	if lockErr := a.lockWatcher.CheckLockInForce(
@@ -387,6 +400,8 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 
 	// Enforce required private key policy if set.
 	if err := a.enforcePrivateKeyPolicy(ctx, authContext, authPref); err != nil {
+		fmt.Printf("authz.permissions.authorizer.Authorize: enforcePrivateKeyPolicy failed %s  \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -398,6 +413,8 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 	}
 
 	if err := a.checkAdminActionVerification(ctx, authContext); err != nil {
+		fmt.Printf("authz.permissions.authorizer.Authorize: checkAdminActionVerification failed %s  \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -428,12 +445,17 @@ func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *C
 func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context, error) {
 	switch user := userI.(type) {
 	case LocalUser:
+		// fmt.Printf("authz.permissions.authorizer.fromUser: LocalUser \n ")
 		return a.authorizeLocalUser(ctx, user)
 	case RemoteUser:
+		// fmt.Printf("authz.permissions.authorizer.fromUser: RemoteUser \n ")
 		return a.authorizeRemoteUser(ctx, user)
 	case BuiltinRole:
+		// fmt.Printf("authz.permissions.authorizer.fromUser: BuiltinRole \n ")
 		return a.authorizeBuiltinRole(ctx, user)
 	case RemoteBuiltinRole:
+		// fmt.Printf("authz.permissions.authorizer.fromUser: RemoteBuiltinRole \n ")
+
 		return a.authorizeRemoteBuiltinRole(user)
 	default:
 		return nil, trace.AccessDenied("unsupported context type %T", userI)
@@ -635,6 +657,8 @@ func (a *authorizer) authorizeLocalUser(ctx context.Context, u LocalUser) (*Cont
 
 // authorizeRemoteUser returns checker based on cert authority roles
 func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Context, error) {
+	fmt.Printf("authz.permissions.authorizeRemoteUser: RemoteUser %+v \n ", u)
+
 	ca, err := a.accessPoint.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: u.ClusterName,
@@ -725,6 +749,8 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 
 // authorizeBuiltinRole authorizes builtin role
 func (a *authorizer) authorizeBuiltinRole(ctx context.Context, r BuiltinRole) (*Context, error) {
+	// fmt.Printf("authz.permissions.authorizeBuiltinRole: BuiltinRole %+v \n ", r)
+
 	recConfig, err := a.accessPoint.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -733,6 +759,8 @@ func (a *authorizer) authorizeBuiltinRole(ctx context.Context, r BuiltinRole) (*
 }
 
 func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, error) {
+	fmt.Printf("authz.permissions.authorizeRemoteBuiltinRole: RemoteBuiltinRole %+v \n ", r)
+
 	if r.Role != types.RoleProxy {
 		return nil, trace.AccessDenied("access denied for remote %v connecting to cluster", r.Role)
 	}
@@ -1270,17 +1298,24 @@ func ContextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig
 
 // ContextForLocalUser returns a context with the local user info embedded.
 func ContextForLocalUser(ctx context.Context, u LocalUser, accessPoint AuthorizerAccessPoint, clusterName string, disableDeviceRoleMode bool) (*Context, error) {
+	// fmt.Printf(" -- authz.permissions.ContextForLocalUser: accessPoint %+v \n", accessPoint)
+
 	// User has to be fetched to check if it's a blocked username
 	user, err := accessPoint.GetUser(ctx, u.Username, false)
 	if err != nil {
+		fmt.Printf(" --  authz.permissions.ContextForLocalUser: accessPoint.GetUser failed %s \n ", err.Error())
 		return nil, trace.Wrap(err)
 	}
 	accessInfo, err := services.AccessInfoFromLocalIdentity(u.Identity, accessPoint)
 	if err != nil {
+		fmt.Printf("authz.permissions.ContextForLocalUser: AccessInfoFromLocalIdentity failed %s \n ", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, accessPoint)
 	if err != nil {
+		fmt.Printf("authz.permissions.ContextForLocalUser: NewAccessChecker failed %s \n ", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 	// Override roles and traits from the local user based on the identity roles
@@ -1292,6 +1327,9 @@ func ContextForLocalUser(ctx context.Context, u LocalUser, accessPoint Authorize
 	// certificate metadata.
 	user.SetRoles(accessInfo.Roles)
 	user.SetTraits(accessInfo.Traits)
+
+	// fmt.Printf("authz.permissions.ContextForLocalUser: user %+v \n", user)
+	// fmt.Printf("authz.permissions.ContextForLocalUser: LocalUser %+v \n", u)
 
 	return &Context{
 		User:                  user,

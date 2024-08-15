@@ -563,6 +563,7 @@ func (a *Server) getGithubOAuth2Client(connector types.GithubConnector) (*oauth2
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
 func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
+	fmt.Printf("binhnt.auth.github.validateGithubAuthCallback start %+v \n", q)
 	logger := log.WithFields(logrus.Fields{teleport.ComponentKey: "github"})
 
 	if errParam := q.Get("error"); errParam != "" {

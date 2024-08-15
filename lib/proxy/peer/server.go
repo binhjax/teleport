@@ -21,6 +21,7 @@ package peer
 import (
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"math"
 	"net"
 	"time"
@@ -122,6 +123,7 @@ type Server struct {
 
 // NewServer creates a new proxy server instance.
 func NewServer(config ServerConfig) (*Server, error) {
+	fmt.Printf("binhnt.proxy.peer.server: start server \n")
 	err := config.checkAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)

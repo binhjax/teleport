@@ -170,6 +170,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 
 	// SSO validation handlers
 	srv.POST("/:version/github/requests/validate", srv.WithAuth(srv.validateGithubAuthCallback))
+	srv.POST("/:version/oidc/requests/validate", srv.WithAuth(srv.validateOIDCAuthCallback))
 
 	// Audit logs AKA events
 	srv.GET("/:version/events", srv.WithAuth(srv.searchEvents))
@@ -193,9 +194,12 @@ type HandlerWithAuthFunc func(auth *ServerWithRoles, w http.ResponseWriter, r *h
 
 func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		// fmt.Printf("binhnt.auth.apiserver.WithAuth: path %s \n", r.URL.Path)
 		// HTTPS server expects auth context to be set by the auth middleware
 		authContext, err := s.Authorizer.Authorize(r.Context())
 		if err != nil {
+			fmt.Printf("binhnt.auth.apiserver.WithAuth: Authorize failed %s \n", err.Error())
+
 			return nil, trace.Wrap(err)
 		}
 		auth := &ServerWithRoles{
@@ -205,6 +209,8 @@ func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		}
 		version := p.ByName("version")
 		if version == "" {
+			fmt.Printf("binhnt.auth.apiserver.WithAuth: missing version")
+
 			return nil, trace.BadParameter("missing version")
 		}
 		return handler(auth, w, r, p, version)
@@ -472,6 +478,8 @@ func (s *APIServer) createWebSession(auth *ServerWithRoles, w http.ResponseWrite
 }
 
 func (s *APIServer) authenticateWebUser(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	fmt.Printf("binhnt.auth.apiserver.authenticateWebUser: start  \n")
+
 	var req authclient.AuthenticateUserRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -479,6 +487,8 @@ func (s *APIServer) authenticateWebUser(auth *ServerWithRoles, w http.ResponseWr
 	req.Username = p.ByName("user")
 	sess, err := auth.AuthenticateWebUser(r.Context(), req)
 	if err != nil {
+		fmt.Printf("binhnt.auth.apiserver.authenticateWebUser: AuthenticateWebUser failed  %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
@@ -519,6 +529,8 @@ func (s *APIServer) upsertUser(auth *ServerWithRoles, w http.ResponseWriter, r *
 
 func rawMessage(data []byte, err error) (interface{}, error) {
 	if err != nil {
+		fmt.Printf("binhnt.auth.apiserver.rawMessage: err  %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 	m := json.RawMessage(data)
@@ -572,6 +584,7 @@ validateGithubAuthRequest validates Github auth callback redirect
 	Success response: githubAuthRawResponse
 */
 func (s *APIServer) validateGithubAuthCallback(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	fmt.Printf("binhnt.auth.apiserver.validateGithubAuthCallback: start \n")
 	var req validateGithubAuthCallbackReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)

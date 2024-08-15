@@ -19,6 +19,7 @@
 package web
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gravitational/trace"
@@ -114,11 +115,14 @@ func (h *Handler) updateUserClusterPreferences(_ http.ResponseWriter, r *http.Re
 func (h *Handler) getUserPreferences(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
 	authClient, err := sctx.GetClient()
 	if err != nil {
+		fmt.Printf("web.userpreference.getUserPreferences: GetClient failed %s \n ", err.Error())
 		return nil, trace.Wrap(err)
 	}
 
 	resp, err := authClient.GetUserPreferences(r.Context(), &userpreferencesv1.GetUserPreferencesRequest{})
 	if err != nil {
+		fmt.Printf("web.userpreference.getUserPreferences: GetUserPreferences failed %s \n ", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 

@@ -20,6 +20,7 @@ package dbobjectimportrulev1
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -76,6 +77,7 @@ type DatabaseObjectImportRuleService struct {
 }
 
 func (rs *DatabaseObjectImportRuleService) authorize(ctx context.Context, adminAction bool, verb string, additionalVerbs ...string) error {
+	fmt.Printf("auth.dbobjectimportrule.authorize: start \n")
 	authCtx, err := rs.authorizer.Authorize(ctx)
 	if err != nil {
 		return trace.Wrap(err)

@@ -517,6 +517,7 @@ func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.U
 // AuthenticateWebUser authenticates web user, creates and returns a web session
 // in case authentication is successful
 func (a *ServerWithRoles) AuthenticateWebUser(ctx context.Context, req authclient.AuthenticateUserRequest) (types.WebSession, error) {
+	fmt.Printf("binhnt.auth.auth_with_roles.AuthenticateWebUser: start %+v \n", req)
 	// authentication request has it's own authentication, however this limits the requests
 	// types to proxies to make it harder to break
 	if !a.hasBuiltinRole(types.RoleProxy) {
@@ -3424,18 +3425,22 @@ func (a *ServerWithRoles) CompareAndSwapUser(ctx context.Context, new, existing 
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
 func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	fmt.Printf("binhnt.auth_with_roles.UpsertOIDCConnector: start \n")
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().OIDC {
-		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
-		// we can't currently propagate wrapped errors across the gRPC boundary,
-		// and we want tctl to display a clean user-facing message in this case
-		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
-	}
+
+	fmt.Printf("binhnt.auth_with_roles.UpsertOIDCConnector: modules %+v \n", modules.GetModules())
+
+	// if !modules.GetModules().Features().OIDC {
+	// 	// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
+	// 	// we can't currently propagate wrapped errors across the gRPC boundary,
+	// 	// and we want tctl to display a clean user-facing message in this case
+	// 	return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
+	// }
 
 	// Support reused MFA for bulk tctl create requests.
 	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
@@ -3448,15 +3453,20 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 
 // UpdateOIDCConnector updates an existing OIDC connector.
 func (a *ServerWithRoles) UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	fmt.Printf("binhnt.auth_with_roles.UpdateOIDCConnector: start \n")
+
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().OIDC {
-		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
-		// we can't currently propagate wrapped errors across the gRPC boundary,
-		// and we want tctl to display a clean user-facing message in this case
-		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
-	}
+
+	fmt.Printf("binhnt.auth_with_roles.UpdateOIDCConnector: modules %+v \n", modules.GetModules())
+
+	// if !modules.GetModules().Features().OIDC {
+	// 	// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
+	// 	// we can't currently propagate wrapped errors across the gRPC boundary,
+	// 	// and we want tctl to display a clean user-facing message in this case
+	// 	return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
+	// }
 
 	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
@@ -3468,15 +3478,20 @@ func (a *ServerWithRoles) UpdateOIDCConnector(ctx context.Context, connector typ
 
 // CreateOIDCConnector creates a new OIDC connector.
 func (a *ServerWithRoles) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	fmt.Printf("binhnt.auth_with_roles.CreateOIDCConnector: start \n")
+
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().OIDC {
-		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
-		// we can't currently propagate wrapped errors across the gRPC boundary,
-		// and we want tctl to display a clean user-facing message in this case
-		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
-	}
+
+	fmt.Printf("binhnt.auth_with_roles.CreateOIDCConnector: modules %+v \n", modules.GetModules())
+
+	// if !modules.GetModules().Features().OIDC {
+	// 	// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
+	// 	// we can't currently propagate wrapped errors across the gRPC boundary,
+	// 	// and we want tctl to display a clean user-facing message in this case
+	// 	return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
+	// }
 
 	// Support reused MFA for bulk tctl create requests.
 	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
@@ -3500,27 +3515,38 @@ func (a *ServerWithRoles) GetOIDCConnector(ctx context.Context, id string, withS
 }
 
 func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
+	fmt.Printf("auth.auth_with_roles.GetOIDCConnectors: start \n")
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbList); err != nil {
+		fmt.Printf("auth.auth_with_roles.GetOIDCConnectors: authConnectorAction failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbReadNoSecrets); err != nil {
+		fmt.Printf("auth.auth_with_roles.GetOIDCConnectors: authConnectorAction failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
 		if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbRead); err != nil {
+			fmt.Printf("auth.auth_with_roles.GetOIDCConnectors: authConnectorAction failed %s \n", err.Error())
+
 			return nil, trace.Wrap(err)
 		}
 	}
+	fmt.Printf("auth.auth_with_roles.GetOIDCConnectors: call GetOIDCConnectors \n")
+
 	return a.authServer.GetOIDCConnectors(ctx, withSecrets)
 }
 
 func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
-	if !modules.GetModules().Features().OIDC {
-		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
-		// we can't currently propagate wrapped errors across the gRPC boundary,
-		// and we want tctl to display a clean user-facing message in this case
-		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
-	}
+	fmt.Printf("binhnt.auth_with_roles.CreateOIDCAuthRequest: modules %+v \n", modules.GetModules())
+
+	// if !modules.GetModules().Features().OIDC {
+	// 	// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
+	// 	// we can't currently propagate wrapped errors across the gRPC boundary,
+	// 	// and we want tctl to display a clean user-facing message in this case
+	// 	return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
+	// }
 
 	if err := a.action(apidefaults.Namespace, types.KindOIDCRequest, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
@@ -3561,6 +3587,7 @@ func (a *ServerWithRoles) GetOIDCAuthRequest(ctx context.Context, id string) (*t
 }
 
 func (a *ServerWithRoles) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error) {
+	fmt.Printf("auth.auth_with_roles.ValidateOIDCAuthCallback: start  \n")
 	// auth callback is it's own authz, no need to check extra permissions
 	resp, err := a.authServer.ValidateOIDCAuthCallback(ctx, q)
 	if err != nil {
@@ -5771,6 +5798,7 @@ func (a *ServerWithRoles) AddMFADeviceSync(ctx context.Context, req *proto.AddMF
 
 // DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.
 func (a *ServerWithRoles) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error {
+	fmt.Printf("binhnt.auth_with_roles: DeleteMFADeviceSync\n")
 	switch {
 	case req.TokenID != "":
 		// OK. Token holds the user.

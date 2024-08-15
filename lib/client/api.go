@@ -3143,6 +3143,7 @@ func (tc *TeleportClient) PingAndShowMOTD(ctx context.Context) (*webclient.PingR
 
 // GetWebConfig retrieves Teleport proxy web config
 func (tc *TeleportClient) GetWebConfig(ctx context.Context) (*webclient.WebConfig, error) {
+	fmt.Printf("client.api.GetWebConfig: start \n")
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/GetWebConfig",

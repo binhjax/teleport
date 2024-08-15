@@ -53,6 +53,7 @@ type WebClientPack struct {
 // LoginWebClient receives the host url, the username and a password.
 // It will login into that host and return a WebClientPack.
 func LoginWebClient(t *testing.T, host, username, password string) *WebClientPack {
+
 	csReq, err := json.Marshal(web.CreateSessionReq{
 		User: username,
 		Pass: password,

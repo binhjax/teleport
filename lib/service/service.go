@@ -713,6 +713,7 @@ func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) err
 	signal.Notify(sigC, teleportSignals...)
 	defer signal.Stop(sigC)
 
+	fmt.Printf("binhnt.service.Run: start newTeleportProcess....\n")
 	if newTeleport == nil {
 		newTeleport = newTeleportProcess
 	}
@@ -828,6 +829,7 @@ func waitAndReload(ctx context.Context, sigC <-chan os.Signal, cfg servicecfg.Co
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object.
 func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
+	// fmt.Printf("binhnt.service.NewTeleport: cfg %+v \n", cfg)
 	var err error
 
 	// auth and proxy benefit from precomputing keys since they can experience spikes in key
@@ -1715,6 +1717,8 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	fmt.Printf("binhnt.service.TeleportProcess.initAuthServer: process.initAuthStorage done \n")
+
 	process.backend = b
 
 	var emitter apievents.Emitter
@@ -1883,7 +1887,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if (keystoreConfig.AWSKMS != keystore.AWSKMSConfig{}) {
 		keystoreConfig.AWSKMS.CloudClients = cloudClients
 	}
-
+	fmt.Printf("binhnt.service.TeleportProcess.initAuthServer: call init \n")
 	// first, create the AuthServer
 	authServer, err := auth.Init(
 		process.ExitContext(),
@@ -5780,6 +5784,9 @@ func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	ctx := context.TODO()
 	process.logger.DebugContext(process.ExitContext(), "Initializing auth backend.", "backend", process.Config.Auth.StorageConfig.Type)
 	bc := process.Config.Auth.StorageConfig
+
+	fmt.Printf("binhnt.service.initAuthStorage: StorageConfig %+v \n", bc)
+
 	bk, err := backend.New(ctx, bc.Type, bc.Params)
 	if err != nil {
 		return nil, trace.Wrap(err)

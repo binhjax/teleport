@@ -322,6 +322,7 @@ const (
 
 // SetModules sets the modules interface
 func SetModules(m Modules) {
+	fmt.Printf("binhnt.modules: SetModules %+v \n", m)
 	mutex.Lock()
 	defer mutex.Unlock()
 	modules = m

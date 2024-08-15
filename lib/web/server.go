@@ -20,6 +20,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -76,6 +77,7 @@ type Server struct {
 
 // NewServer constructs a [Server] from the provided [ServerConfig].
 func NewServer(cfg ServerConfig) (*Server, error) {
+	fmt.Printf("binhnt.web.server: NewServer start \n ")
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

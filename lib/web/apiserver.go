@@ -339,6 +339,7 @@ type Config struct {
 // SetDefaults ensures proper default values are set if
 // not provided.
 func (c *Config) SetDefaults() {
+	fmt.Printf("binhnt.web.apiserver.Config.SetDefaults:  WithGithubConnectorConversions \n")
 	c.ProxyClient = auth.WithGithubConnectorConversions(c.ProxyClient)
 
 	if c.TracerProvider == nil {
@@ -395,6 +396,7 @@ func (h *APIHandler) Close() error {
 
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
+	// fmt.Printf("binhnt.web.apiserver.NewHandler: start %+v \n", cfg)
 	const apiPrefix = "/" + teleport.WebAPIVersion
 
 	cfg.SetDefaults()
@@ -585,13 +587,18 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 			http.StripPrefix("/web", fs).ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web/") || r.URL.Path == "/web" {
+			fmt.Printf("binhnt.web.apiserver.NewHandler: web start")
 			csrfToken, err := csrf.AddCSRFProtection(w, r)
 			if err != nil {
+				fmt.Printf("binhnt.web.apiserver.NewHandler: AddCSRFProtection failed %s \n", err.Error())
+
 				h.log.WithError(err).Warn("Failed to generate CSRF token.")
 			}
 
 			session, err := h.authenticateWebSession(w, r)
 			if err != nil {
+				fmt.Printf("binhnt.web.apiserver.NewHandler: authenticateWebSession failed %s \n", err.Error())
+
 				h.log.Debugf("Could not authenticate: %v", err)
 			}
 			session.XCSRF = csrfToken
@@ -600,6 +607,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
 
 			if err := indexPage.Execute(w, session); err != nil {
+				fmt.Printf("binhnt.web.apiserver.NewHandler: execute index page failed %s \n", err.Error())
+
 				h.log.WithError(err).Error("Failed to execute index page template.")
 			}
 		} else {
@@ -655,18 +664,28 @@ type webSession struct {
 }
 
 func (h *Handler) authenticateWebSession(w http.ResponseWriter, r *http.Request) (webSession, error) {
+	fmt.Printf("binhnt.web.apiserver.authenticateWebSession: start \n")
+
 	ctx, err := h.AuthenticateRequest(w, r, false)
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.authenticateWebSession: AuthenticateRequest failed %s \n", err.Error())
+
 		return webSession{}, trace.Wrap(err)
 	}
 	resp, err := newSessionResponse(ctx)
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.authenticateWebSession: newSessionResponse failed %s \n", err.Error())
+
 		return webSession{}, trace.Wrap(err)
 	}
 	out, err := json.Marshal(resp)
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.authenticateWebSession: Marshal failed %s \n", err.Error())
+
 		return webSession{}, trace.Wrap(err)
 	}
+	fmt.Printf("binhnt.web.apiserver.authenticateWebSession: out %s \n", base64.StdEncoding.EncodeToString(out))
+
 	return webSession{
 		Session: base64.StdEncoding.EncodeToString(out),
 	}, nil
@@ -833,6 +852,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
 	h.GET("/webapi/github/callback", h.WithMetaRedirect(h.githubCallback))
 	h.POST("/webapi/github/login/console", h.WithLimiter(h.githubLoginConsole))
+
+	// binhnt: oidc connector handlers
+	h.GET("/webapi/oidc/login/web", h.WithRedirect(h.oidcLoginWeb))
+	h.GET("/webapi/oidc/callback", h.WithMetaRedirect(h.oidcCallback))
+	h.POST("/webapi/oidc/login/console", h.WithLimiter(h.oidcLoginConsole))
 
 	// MFA public endpoints.
 	h.POST("/webapi/sites/:site/mfa/required", h.WithClusterAuth(h.isMFARequired))
@@ -1092,25 +1116,38 @@ func (h *Handler) handleGetUserOrResetToken(w http.ResponseWriter, r *http.Reque
 //
 // GET /webapi/sites/:site/context
 func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	fmt.Printf("binhnt.web.apiserver.getUserContext: start \n")
 	cn, err := h.cfg.AccessPoint.GetClusterName()
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.getUserContext: AccessPoint.GetClusterName failed %s  \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 	if cn.GetClusterName() != site.GetName() {
+		fmt.Printf("binhnt.web.apiserver.getUserContext: cn.GetClusterName() != site.GetName() \n")
+
 		return nil, trace.BadParameter("endpoint only implemented for root cluster")
 	}
 	accessChecker, err := c.GetUserAccessChecker()
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.getUserContext: GetUserAccessChecker failed %s  \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
 	clt, err := c.GetClient()
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.getUserContext: GetClient failed %s  \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
+	fmt.Printf("binhnt.web.apiserver.getUserContext: c.GetUser()=%s  \n", c.GetUser())
+
 	user, err := clt.GetUser(r.Context(), c.GetUser(), false)
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.getUserContext: GetUser failed %s  \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -1277,12 +1314,15 @@ func deviceTrustDisabled(cap types.AuthPreference) bool {
 }
 
 func getAuthSettings(ctx context.Context, authClient authclient.ClientI) (webclient.AuthenticationSettings, error) {
+	fmt.Printf("binhnt.web.apiserver.getAuthSettings: start %+v \n", authClient)
+
 	authPreference, err := authClient.GetAuthPreference(ctx)
 	if err != nil {
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
 	}
 
 	var as webclient.AuthenticationSettings
+	fmt.Printf("binhnt.web.apiserver.getAuthSettings: authPreference %+v \n", authPreference)
 
 	switch authPreference.GetType() {
 	case constants.Local:
@@ -1299,6 +1339,7 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI) (webcli
 
 			as = oidcSettings(oidcConnector, authPreference)
 		} else {
+			fmt.Printf("binhnt.web.apiserver.getAuthSettings: create IODC connectors \n")
 			oidcConnectors, err := authClient.GetOIDCConnectors(ctx, false)
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
@@ -1572,6 +1613,8 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 
 // getWebConfig returns configuration for the web application.
 func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	// fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: start \n")
+
 	httplib.SetWebConfigHeaders(w.Header())
 
 	authProviders := []webclient.WebConfigAuthProvider{}
@@ -1579,9 +1622,13 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	// get all OIDC connectors
 	oidcConnectors, err := h.cfg.ProxyClient.GetOIDCConnectors(r.Context(), false)
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: GetOIDCConnectors failed %s \n", err.Error())
+
 		h.log.WithError(err).Error("Cannot retrieve OIDC connectors.")
 	}
 	for _, item := range oidcConnectors {
+		// fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: item %+v \n", item)
+
 		authProviders = append(authProviders, webclient.WebConfigAuthProvider{
 			Type:        webclient.WebConfigAuthProviderOIDCType,
 			WebAPIURL:   webclient.WebConfigAuthProviderOIDCURL,
@@ -1593,6 +1640,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	// get all SAML connectors
 	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectors(r.Context(), false)
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: GetSAMLConnectors failed %s \n", err.Error())
+
 		h.log.WithError(err).Error("Cannot retrieve SAML connectors.")
 	}
 	for _, item := range samlConnectors {
@@ -1607,6 +1656,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	// get all Github connectors
 	githubConnectors, err := h.cfg.ProxyClient.GetGithubConnectors(r.Context(), false)
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: GetGithubConnectors failed %s \n", err.Error())
+
 		h.log.WithError(err).Error("Cannot retrieve GitHub connectors.")
 	}
 	for _, item := range githubConnectors {
@@ -1621,6 +1672,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	// get auth type & second factor type
 	var authSettings webclient.WebConfigAuthSettings
 	if cap, err := h.cfg.ProxyClient.GetAuthPreference(r.Context()); err != nil {
+		fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: GetAuthPreference failed %s \n", err.Error())
+
 		h.log.WithError(err).Error("Cannot retrieve AuthPreferences.")
 		authSettings = webclient.WebConfigAuthSettings{
 			Providers:        authProviders,
@@ -1630,6 +1683,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	} else {
 		authType := cap.GetType()
+		// fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: authType %s \n", authType)
+
 		var localConnectorName string
 
 		if authType == constants.Local {
@@ -1653,16 +1708,23 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	// ping server to get cluster features since h.ClusterFeatures may be stale
 	pingResponse, err := h.GetProxyClient().Ping(r.Context())
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: Ping failed %s \n", err.Error())
+
 		h.log.WithError(err).Warn("Cannot retrieve cluster features, client may receive stale features")
 	} else {
 		clusterFeatures = *pingResponse.ServerFeatures
 	}
+
+	clusterFeatures.OIDC = true //binhnt
+	// fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: clusterFeatures %+v\n", clusterFeatures)
 
 	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""
 	assistEnabled := false // TODO(jakule) remove when plugins are implemented
 	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: GetProxySettings failed %s \n", err.Error())
+
 		h.log.WithError(err).Warn("Cannot retrieve ProxySettings, tunnel address won't be set in Web UI.")
 	} else {
 		if clusterFeatures.GetCloud() {
@@ -1672,6 +1734,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		if proxyConfig.AssistEnabled {
 			enabled, err := h.cfg.ProxyClient.IsAssistEnabled(r.Context())
 			if err != nil {
+				fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: IsAssistEnabled failed %s \n", err.Error())
+
 				return nil, trace.Wrap(err)
 			}
 
@@ -1684,6 +1748,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	canJoinSessions := true
 	recCfg, err := h.cfg.ProxyClient.GetSessionRecordingConfig(r.Context())
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: GetSessionRecordingConfig failed %s \n", err.Error())
+
 		h.log.WithError(err).Error("Cannot retrieve SessionRecordingConfig.")
 	} else {
 		canJoinSessions = !services.IsRecordAtProxy(recCfg.GetMode())
@@ -1692,12 +1758,15 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	automaticUpgradesEnabled := clusterFeatures.GetAutomaticUpgrades()
 	var automaticUpgradesTargetVersion string
 	if automaticUpgradesEnabled {
+		fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: GetAutomaticUpgrades failed %s \n", err.Error())
+
 		automaticUpgradesTargetVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
 		h.log.WithError(err).Error("Cannot read target version")
 	}
+	fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: recCfg %+v\n", recCfg)
 
 	// TODO(mcbattirola): remove isTeam when it is no longer used
-	isTeam := clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM
+	// isTeam := clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM
 
 	webCfg := webclient.WebConfig{
 		Edition:                        modules.GetModules().BuildType(),
@@ -1720,22 +1789,29 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			AccessMonitoringMaxReportRangeLimit: int(clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()),
 			AccessRequestMonthlyRequestLimit:    int(clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()),
 		},
-		Questionnaire:          clusterFeatures.GetQuestionnaire(),
-		IsStripeManaged:        clusterFeatures.GetIsStripeManaged(),
-		ExternalAuditStorage:   clusterFeatures.GetExternalAuditStorage(),
-		PremiumSupport:         clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
-		AccessRequests:         clusterFeatures.GetAccessRequests().MonthlyRequestLimit > 0,
-		TrustedDevices:         clusterFeatures.GetDeviceTrust().GetEnabled(),
-		OIDC:                   clusterFeatures.GetOIDC(),
-		SAML:                   clusterFeatures.GetSAML(),
+		Questionnaire:        clusterFeatures.GetQuestionnaire(),
+		IsStripeManaged:      clusterFeatures.GetIsStripeManaged(),
+		ExternalAuditStorage: clusterFeatures.GetExternalAuditStorage(),
+		PremiumSupport:       true,
+		// PremiumSupport:         clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
+		AccessRequests: clusterFeatures.GetAccessRequests().MonthlyRequestLimit > 0,
+		TrustedDevices: clusterFeatures.GetDeviceTrust().GetEnabled(),
+		OIDC:           true,
+		SAML:           true,
+		// OIDC:                   clusterFeatures.GetOIDC(),
+		// SAML:                   clusterFeatures.GetSAML(),
 		MobileDeviceManagement: clusterFeatures.GetMobileDeviceManagement(),
 		JoinActiveSessions:     clusterFeatures.GetJoinActiveSessions(),
 		// TODO(mcbattirola): remove isTeam when it is no longer used
-		IsTeam: isTeam,
+		IsTeam: true,
+		// IsTeam: isTeam,
 	}
+	// fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: webCfg %+v\n", webCfg)
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: GetClusterName failed %s \n", err.Error())
+
 		h.log.WithError(err).Warn("Failed to query cluster name.")
 	} else {
 		webCfg.ProxyClusterName = resource.GetClusterName()
@@ -1743,8 +1819,11 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 	out, err := json.Marshal(webCfg)
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: Marshal failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
+	// fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: out %+v\n", string(out))
 
 	fmt.Fprintf(w, "var GRV_CONFIG = %v;", string(out))
 	return nil, nil
@@ -2100,15 +2179,19 @@ type CreateSessionResponse struct {
 func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.newSessionResponse: GetUserAccessChecker failed %s \n", err.Error())
 		return nil, trace.Wrap(err)
 	}
 	_, err = accessChecker.CheckLoginDuration(0)
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.newSessionResponse: CheckLoginDuration failed %s \n", err.Error())
 		return nil, trace.Wrap(err)
 	}
 
 	token, err := sctx.getToken()
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.newSessionResponse: getToken failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -2131,6 +2214,7 @@ func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
 //
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	fmt.Printf("binhnt.web.apiserver.createWebSession: start \n")
 	var req *CreateSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2172,6 +2256,8 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
+	fmt.Printf("binhnt.web.apiserver.createWebSession: create cookie \n")
+
 	if err := websession.SetCookie(w, req.User, webSession.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2181,6 +2267,8 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		h.log.WithError(err).Warnf("Access attempt denied for user %q.", req.User)
 		return nil, trace.AccessDenied("need auth")
 	}
+
+	fmt.Printf("binhnt.web.apiserver.createWebSession: newSessionResponse \n")
 
 	res, err := newSessionResponse(ctx)
 	if err != nil {
@@ -2261,6 +2349,7 @@ type renewSessionRequest struct {
 //   - ReloadUser (opt): similar to default but updates user related data (e.g login traits) by retrieving it from the backend
 //   - default (none set): create new session with currently assigned roles
 func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	fmt.Printf("binhnt.web.apiserver.Handler.renewWebSession start \n")
 	req := renewSessionRequest{}
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2305,6 +2394,8 @@ type changeUserAuthenticationRequest struct {
 }
 
 func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	fmt.Printf("binhnt.web.apiserver.Handler.changeUserAuthentication start \n")
+
 	var req changeUserAuthenticationRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2528,6 +2619,8 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 //
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	fmt.Printf("binhnt.web.apiserver.Handler.mfaLoginFinishSession start \n")
+
 	req := &client.AuthenticateWebUserRequest{}
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -3075,10 +3168,14 @@ type getLoginAlertsResponse struct {
 
 // clusterLoginAlertsGet returns a list of on-login alerts for the user.
 func (h *Handler) clusterLoginAlertsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	fmt.Printf("binhnt.web.apiserver.clusterLoginAlertsGet: start \n")
+
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of alerts.
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.clusterLoginAlertsGet: GetUserClient failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -4392,6 +4489,8 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 
 		redirectURL := fn(w, r, p)
 		if !isValidRedirectURL(redirectURL) {
+			fmt.Printf("binhnt.web.apiserver.WithRedirect: isValidRedirectURL faild %s \n", redirectURL)
+
 			redirectURL = client.LoginFailedRedirectURL
 		}
 		http.Redirect(w, r, redirectURL, http.StatusFound)
@@ -4406,6 +4505,8 @@ func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		redirectURL := fn(w, r, p)
 		if !isValidRedirectURL(redirectURL) {
+			fmt.Printf("binhnt.web.apiserver.WithMetaRedirect: isValidRedirectURL faild %s \n", redirectURL)
+
 			redirectURL = client.LoginFailedRedirectURL
 		}
 		err := app.MetaRedirect(w, redirectURL)
@@ -4531,14 +4632,20 @@ func (h *Handler) validateCookie(w http.ResponseWriter, r *http.Request) (*Sessi
 	const missingCookieMsg = "missing session cookie"
 	cookie, err := r.Cookie(websession.CookieName)
 	if err != nil || (cookie != nil && cookie.Value == "") {
+		// fmt.Printf("binhnt.web.apiserver.Handler.validateCookie:  Cookie failed %s \n", err.Error())
+
 		return nil, trace.AccessDenied(missingCookieMsg)
 	}
 	decodedCookie, err := websession.DecodeCookie(cookie.Value)
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.Handler.validateCookie:  DecodeCookie failed %s \n", err.Error())
+
 		return nil, trace.AccessDenied("failed to decode cookie")
 	}
 	sctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.Handler.validateCookie:  auth.getOrCreateSession failed %s \n", err.Error())
+
 		clearSessionCookies((w))
 		return nil, trace.AccessDenied("need auth")
 	}
@@ -4549,21 +4656,31 @@ func (h *Handler) validateCookie(w http.ResponseWriter, r *http.Request) (*Sessi
 // AuthenticateRequest authenticates request using combination of a session cookie
 // and bearer token
 func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*SessionContext, error) {
+	fmt.Printf("binhnt.web.apiserver.Handler.AuthenticateRequest:  start \n")
+
 	sctx, err := h.validateCookie(w, r)
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.Handler.AuthenticateRequest:  validateCookie failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 	if checkBearerToken {
 		creds, err := roundtrip.ParseAuthHeaders(r)
 		if err != nil {
+			fmt.Printf("binhnt.web.apiserver.Handler.AuthenticateRequest:  ParseAuthHeaders failed %s \n", err.Error())
+
 			return nil, trace.AccessDenied("need auth")
 		}
 		if err := sctx.validateBearerToken(r.Context(), creds.Password); err != nil {
+			fmt.Printf("binhnt.web.apiserver.Handler.AuthenticateRequest:  validateBearerToken failed %s \n", err.Error())
+
 			return nil, trace.AccessDenied("bad bearer token")
 		}
 	}
 
 	if err := parseMFAResponseFromRequest(r); err != nil {
+		fmt.Printf("binhnt.web.apiserver.Handler.AuthenticateRequest:  parseMFAResponseFromRequest failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -4850,18 +4967,25 @@ type SSOCallbackResponse struct {
 // from the response. On success, nil is returned. If the validation fails, an
 // error is returned.
 func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, response *SSOCallbackResponse, verifyCSRF bool) error {
+	fmt.Printf("binhnt.web.apiserver.SSOSetWebSessionAndRedirectURL: start \n")
 	if verifyCSRF {
 		if err := csrf.VerifyToken(response.CSRFToken, r); err != nil {
+			fmt.Printf("binhnt.web.apiserver.SSOSetWebSessionAndRedirectURL: VerifyTokenn failed %s \n", err.Error())
+
 			return trace.Wrap(err)
 		}
 	}
 
 	if err := websession.SetCookie(w, response.Username, response.SessionName); err != nil {
+		fmt.Printf("binhnt.web.apiserver.SSOSetWebSessionAndRedirectURL: SetCookie failed %s \n", err.Error())
+
 		return trace.Wrap(err)
 	}
 
 	parsedRedirectURL, err := httplib.OriginLocalRedirectURI(response.ClientRedirectURL)
 	if err != nil {
+		fmt.Printf("binhnt.web.apiserver.SSOSetWebSessionAndRedirectURL: OriginLocalRedirectURI failed %s \n", err.Error())
+
 		return trace.Wrap(err)
 	}
 	response.ClientRedirectURL = parsedRedirectURL

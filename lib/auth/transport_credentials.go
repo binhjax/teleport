@@ -21,6 +21,7 @@ package auth
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"time"
@@ -225,6 +226,8 @@ func (c *TransportCredentials) validateIdentity(conn net.Conn, tlsInfo *credenti
 	}
 
 	ctx := context.Background()
+	// fmt.Printf("binhnt.auth.transport_credentials.validateIdentity: identityGetter %+v \n", identityGetter)
+
 	authCtx, err := c.authorize(ctx, conn.RemoteAddr(), identityGetter, &tlsInfo.State)
 	if err != nil {
 		return nil, IdentityInfo{}, trace.Wrap(err)
@@ -270,6 +273,7 @@ func (c *TransportCredentials) performTLSHandshake(rawConn net.Conn) (net.Conn, 
 // to things like locks, private key policy, device trust, etc. If the TransportCredentials
 // was not configured to do authorization then this is a noop and will return nil, nil.
 func (c *TransportCredentials) authorize(ctx context.Context, remoteAddr net.Addr, identityGetter authz.IdentityGetter, connState *tls.ConnectionState) (*authz.Context, error) {
+	fmt.Printf("auth.transport_credentials.authorize: start \n")
 	if c.authorizer == nil {
 		return &authz.Context{
 			Identity: identityGetter,
@@ -279,6 +283,9 @@ func (c *TransportCredentials) authorize(ctx context.Context, remoteAddr net.Add
 	// construct a context with the keys expected by the Authorizer
 	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(connState))
 	ctx = authz.ContextWithClientSrcAddr(ctx, remoteAddr)
+
+	fmt.Printf("binhnt.auth.transport_credentials.authorize: identityGetter %+v \n", identityGetter)
+
 	ctx = authz.ContextWithUser(ctx, identityGetter)
 
 	authCtx, err := c.authorizer.Authorize(ctx)

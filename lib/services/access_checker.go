@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"slices"
 	"strings"
@@ -311,6 +312,7 @@ type accessChecker struct {
 func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) (AccessChecker, error) {
 	roleSet, err := FetchRoles(info.Roles, access, info.Traits)
 	if err != nil {
+		fmt.Printf("binhnt.service.access_checker.NewAccessChecker: FetchRoles feiled :%s \n", err.Error())
 		return nil, trace.Wrap(err)
 	}
 	return &accessChecker{
@@ -1118,18 +1120,24 @@ func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
 // given ssh certificate. Should only be used for cluster local users as roles
 // will not be mapped.
 func AccessInfoFromLocalCertificate(cert *ssh.Certificate) (*AccessInfo, error) {
+	fmt.Printf("binhnt.service.access_checker.AccessInfoFromLocalCertificate: start \n")
 	traits, err := ExtractTraitsFromCert(cert)
 	if err != nil {
+		fmt.Printf("binhnt.web.session.AccessInfoFromLocalCertificate: ExtractTraitsFromCert failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
 	roles, err := ExtractRolesFromCert(cert)
 	if err != nil {
+		fmt.Printf("binhnt.web.session.AccessInfoFromLocalCertificate: ExtractRolesFromCert failed %s \n", err.Error())
 		return nil, trace.Wrap(err)
 	}
 
 	allowedResourceIDs, err := ExtractAllowedResourcesFromCert(cert)
 	if err != nil {
+		fmt.Printf("binhnt.web.session.AccessInfoFromLocalCertificate: ExtractAllowedResourcesFromCert failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -1145,6 +1153,8 @@ func AccessInfoFromLocalCertificate(cert *ssh.Certificate) (*AccessInfo, error) 
 // given remote cluster user's ssh certificate. Remote roles will be mapped to
 // local roles based on the given roleMap.
 func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, roleMap types.RoleMap) (*AccessInfo, error) {
+	fmt.Printf("binhnt.service.access_checker.AccessInfoFromRemoteCertificate: start \n")
+
 	// Old-style SSH certificates don't have traits in metadata.
 	traits, err := ExtractTraitsFromCert(cert)
 	if err != nil && !trace.IsNotFound(err) {

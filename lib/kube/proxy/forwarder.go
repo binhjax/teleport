@@ -986,6 +986,8 @@ func (f *Forwarder) getKubeAccessDetails(
 }
 
 func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
+	fmt.Printf("kube.proxy.forwarder.authorize: start \n")
+
 	ctx, span := f.cfg.tracer.Start(
 		ctx,
 		"kube.Forwarder/authorize",

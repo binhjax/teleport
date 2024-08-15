@@ -314,7 +314,7 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	if cfg.HostUUID == "" {
 		return nil, trace.BadParameter("HostUUID: host UUID can not be empty")
 	}
-
+	fmt.Printf("binhnt.auth.init.Init: start new Server.............. \n")
 	asrv, err := NewServer(&cfg, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)

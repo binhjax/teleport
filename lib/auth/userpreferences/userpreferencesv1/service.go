@@ -20,6 +20,7 @@ package userpreferencesv1
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -67,8 +68,11 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 
 // GetUserPreferences returns the user preferences for a given user.
 func (a *Service) GetUserPreferences(ctx context.Context, _ *userpreferences.GetUserPreferencesRequest) (*userpreferences.GetUserPreferencesResponse, error) {
+	fmt.Printf("binhnt.auth.userpreferences.GetUserPreferences: start %+v ", ctx)
 	authCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {
+		fmt.Printf("binhnt.auth.userpreferences.GetUserPreferences: authorizer.Authorize failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 

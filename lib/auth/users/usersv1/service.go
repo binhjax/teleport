@@ -20,6 +20,7 @@ package usersv1
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -156,17 +157,27 @@ func (s *Service) getCurrentUser(ctx context.Context, authCtx *authz.Context) (*
 }
 
 func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*userspb.GetUserResponse, error) {
+	fmt.Printf("binhnt.auth.users.usersv1.GetUser: start %+v \n", req)
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		fmt.Printf("binhnt.auth.users.usersv1.GetUser: Authorize failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
 	if req.Name == "" && req.CurrentUser {
 		user, err := s.getCurrentUser(ctx, authCtx)
+		if err != nil {
+			fmt.Printf("binhnt.auth.users.usersv1.GetUser: getCurrentUser failed %s \n", err.Error())
+		}
+		fmt.Printf("binhnt.auth.users.usersv1.GetUser: user  %+v \n", user)
+
 		return &userspb.GetUserResponse{User: user}, trace.Wrap(err)
 	}
 
 	if req.WithSecrets {
+		fmt.Printf("binhnt.auth.users.usersv1.GetUser: req.WithSecrets \n")
+
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
 		// migrated to that model.
 		if !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
@@ -192,8 +203,12 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*us
 		// if secrets are not being accessed, let users always read
 		// their own info.
 		if err := currentUserAction(*authCtx, req.Name); err != nil {
+			fmt.Printf("binhnt.auth.users.usersv1.GetUser: currentUserAction failed %s  \n", err.Error())
+
 			// not current user, perform normal permission check.
 			if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbRead); err != nil {
+				fmt.Printf("binhnt.auth.users.usersv1.GetUser: CheckAccessToKind failed %s  \n", err.Error())
+
 				return nil, trace.Wrap(err)
 			}
 		}
@@ -201,14 +216,20 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*us
 
 	user, err := s.cache.GetUser(ctx, req.Name, req.WithSecrets)
 	if err != nil {
+		fmt.Printf("binhnt.auth.users.usersv1.GetUser: cache.GetUser failed %s  \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
 	v2, ok := user.(*types.UserV2)
 	if !ok {
+		fmt.Printf("binhnt.auth.users.usersv1.GetUser: expected type UserV2 \n")
+
 		s.logger.Warnf("expected type UserV2, got %T for user %q", user, user.GetName())
 		return nil, trace.BadParameter("encountered unexpected user type")
 	}
+
+	fmt.Printf("binhnt.auth.users.usersv1.GetUser: v2 %+v  \n", v2)
 
 	return &userspb.GetUserResponse{User: v2}, nil
 }

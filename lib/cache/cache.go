@@ -2120,6 +2120,8 @@ func (c *Cache) ListRemoteClusters(ctx context.Context, pageSize int, nextToken 
 
 // GetUser is a part of auth.Cache implementation.
 func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
+	// fmt.Printf("binhnt.cache.cache.GetUser: start %s  \n", name)
+
 	_, span := c.Tracer.Start(ctx, "cache/GetUser")
 	defer span.End()
 

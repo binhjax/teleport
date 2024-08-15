@@ -118,6 +118,7 @@ type Backend interface {
 func New(ctx context.Context, backend string, params Params) (Backend, error) {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
+	fmt.Printf("binhnt.backend.New: create newbk from reqister function .... \n")
 	newbk, ok := registry[backend]
 	if !ok {
 		return nil, trace.BadParameter("unsupported secrets storage type: %q", backend)

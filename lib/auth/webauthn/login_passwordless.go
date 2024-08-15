@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -87,6 +88,8 @@ type passwordlessIdentity struct {
 }
 
 func (p passwordlessIdentity) UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error {
+	fmt.Printf("binhnt.login_passwordless.UpsertWebauthnLocalAuth: start \n")
+
 	return errors.New("webauthn local auth not supported for passwordless")
 }
 

@@ -311,6 +311,7 @@ func (rd *Redirector) Close() error {
 // wrapCallback is a helper wrapper method that wraps callback HTTP handler
 // and sends a result to the channel and redirect users to error page
 func (rd *Redirector) wrapCallback(fn func(http.ResponseWriter, *http.Request) (*authclient.SSHLoginResponse, error)) http.Handler {
+
 	// Generate possible redirect URLs from the proxy URL.
 	clone := *rd.proxyURL
 	clone.Path = LoginFailedRedirectURL

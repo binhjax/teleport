@@ -25,6 +25,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"sort"
 	"sync"
@@ -69,6 +70,8 @@ type IdentityService struct {
 
 // NewIdentityService returns a new instance of IdentityService object
 func NewIdentityService(backend backend.Backend) *IdentityService {
+	fmt.Printf("binhnt.services.local.users: NewIdentityService start. \n")
+
 	return &IdentityService{
 		Backend:    backend,
 		log:        logrus.WithField(teleport.ComponentKey, "identity"),
@@ -80,6 +83,8 @@ func NewIdentityService(backend backend.Backend) *IdentityService {
 // used in tests. It will use weaker cryptography to minimize the time it takes
 // to perform flakiness tests and decrease the probability of timeouts.
 func NewTestIdentityService(backend backend.Backend) *IdentityService {
+	fmt.Printf("binhnt.services.local.users: NewTestIdentityService start. \n")
+
 	if !testing.Testing() {
 		// Don't allow using weak cryptography in production.
 		panic("Attempted to create a test identity service outside of a test")
@@ -290,7 +295,11 @@ func (s *IdentityService) getUsersWithSecrets(ctx context.Context) ([]types.User
 
 // CreateUser creates user if it does not exist.
 func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (types.User, error) {
+	fmt.Printf("binhnt.services.local.users.CreateUser: user = %+v \n", user)
+
 	if err := services.ValidateUser(user); err != nil {
+		fmt.Printf("binhnt.services.local.users.CreateUser: services.ValidateUser failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -323,17 +332,25 @@ func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (type
 		Value:   value,
 		Expires: user.Expiry(),
 	}
+	fmt.Printf("binhnt.services.local.users.CreateUser: call s.Create -------------  \n")
 
 	lease, err := s.Create(ctx, item)
 	if err != nil {
+		fmt.Printf("binhnt.services.local.users.CreateUser: s.Create failed %s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
 
+	fmt.Printf("binhnt.services.local.users.CreateUser: done -------------  \n")
+
 	if auth != nil {
+		fmt.Printf("binhnt.services.local.users.CreateUser: auth = %+v \n", auth)
 		if err = s.upsertLocalAuthSecrets(ctx, user.GetName(), *auth); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
+	fmt.Printf("binhnt.services.local.users.CreateUser: lease.Revision =  %+v  \n", lease.Revision)
+
 	user.SetRevision(lease.Revision)
 	return user, nil
 }
@@ -543,11 +560,15 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 
 // GetUser returns a user by name
 func (s *IdentityService) GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error) {
+	// fmt.Printf("binhnt.services.local.IdentityService.GetUser: start %s  \n", user)
+
 	u, _, err := s.getUser(ctx, user, withSecrets)
 	return u, trace.Wrap(err)
 }
 
 func (s *IdentityService) getUser(ctx context.Context, user string, withSecrets bool) (types.User, *userItems, error) {
+	// fmt.Printf("binhnt.services.local.IdentityService.getUser: start %s withSecrets: %t \n", user, withSecrets)
+
 	if user == "" {
 		return nil, nil, trace.BadParameter("missing user name")
 	}
@@ -556,21 +577,28 @@ func (s *IdentityService) getUser(ctx context.Context, user string, withSecrets 
 		u, items, err := s.getUserWithSecrets(ctx, user)
 		return u, items, trace.Wrap(err)
 	}
+	// fmt.Printf("binhnt.services.local.IdentityService.getUser:  %s/%s/%s/%s  \n", webPrefix, usersPrefix, user, paramsPrefix)
 
 	item, err := s.Get(ctx, backend.Key(webPrefix, usersPrefix, user, paramsPrefix))
 	if err != nil {
+		fmt.Printf("binhnt.services.local.IdentityService.getUser: Get failed %s  \n", err.Error())
+
 		return nil, nil, trace.NotFound("user %q not found", user)
 	}
 
 	u, err := services.UnmarshalUser(
 		item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
+		fmt.Printf("binhnt.services.local.IdentityService.getUser: UnmarshalUser failed %s \n", err.Error())
+
 		return nil, nil, trace.Wrap(err)
 	}
 
 	if !withSecrets {
 		u.SetLocalAuth(nil)
 	}
+	// fmt.Printf("binhnt.services.local.IdentityService.getUser: userV2 %+v \n", u)
+
 	return u, &userItems{params: item}, nil
 }
 
@@ -614,6 +642,8 @@ func (s *IdentityService) upsertLocalAuthSecrets(ctx context.Context, user strin
 // GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
 // user specified with this identity
 func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (types.User, error) {
+	fmt.Printf("binhnt.services.local.users: GetUserByOIDCIdentity start. \n")
+
 	users, err := s.GetUsers(context.TODO(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -631,6 +661,8 @@ func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (type
 // GetUserBySAMLIdentity returns a user by it's specified OIDC Identity, returns
 // first user specified with this identity.
 func (s *IdentityService) GetUserBySAMLIdentity(id types.ExternalIdentity) (types.User, error) {
+	fmt.Printf("binhnt.services.local.users: GetUserBySAMLIdentity start. \n")
+
 	users, err := s.GetUsers(context.TODO(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1246,6 +1278,8 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 
 // UpsertOIDCConnector upserts OIDC Connector
 func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	fmt.Printf("binhnt.services.local.users: UpsertOIDCConnector start. \n")
+
 	rev := connector.GetRevision()
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
@@ -1267,6 +1301,8 @@ func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector typ
 
 // CreateOIDCConnector creates a new OIDC connector.
 func (s *IdentityService) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	fmt.Printf("binhnt.services.local.users: CreateOIDCConnector start. \n")
+
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1286,6 +1322,8 @@ func (s *IdentityService) CreateOIDCConnector(ctx context.Context, connector typ
 
 // UpdateOIDCConnector updates an existing OIDC connector.
 func (s *IdentityService) UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	fmt.Printf("binhnt.services.local.users: UpdateOIDCConnector start. \n")
+
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1306,6 +1344,8 @@ func (s *IdentityService) UpdateOIDCConnector(ctx context.Context, connector typ
 
 // DeleteOIDCConnector deletes OIDC Connector by name
 func (s *IdentityService) DeleteOIDCConnector(ctx context.Context, name string) error {
+	fmt.Printf("binhnt.services.local.users: DeleteOIDCConnector start. \n")
+
 	if name == "" {
 		return trace.BadParameter("missing parameter name")
 	}
@@ -1316,16 +1356,21 @@ func (s *IdentityService) DeleteOIDCConnector(ctx context.Context, name string) 
 // GetOIDCConnector returns OIDC connector data, parameter 'withSecrets'
 // includes or excludes client secret from return results
 func (s *IdentityService) GetOIDCConnector(ctx context.Context, name string, withSecrets bool) (types.OIDCConnector, error) {
+	fmt.Printf("binhnt.services.local.users: GetOIDCConnector start. \n")
+
 	if name == "" {
 		return nil, trace.BadParameter("missing parameter name")
 	}
 	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, name))
 	if err != nil {
+		fmt.Printf("binhnt.services.local.users: Get failed %s \n", err.Error())
+
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("OpenID connector '%v' is not configured", name)
 		}
 		return nil, trace.Wrap(err)
 	}
+
 	conn, err := services.UnmarshalOIDCConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1334,16 +1379,21 @@ func (s *IdentityService) GetOIDCConnector(ctx context.Context, name string, wit
 		conn.SetClientSecret("")
 		conn.SetGoogleServiceAccount("")
 	}
+	fmt.Printf("binhnt.services.local.users: connection %+v\n", conn)
+
 	return conn, nil
 }
 
 // GetOIDCConnectors returns registered connectors, withSecrets adds or removes client secret from return results
 func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
+	fmt.Printf("services.local.users.GetOIDCConnectors: start \n")
+
 	startKey := backend.ExactKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	var connectors []types.OIDCConnector
 	for _, item := range result.Items {
 		conn, err := services.UnmarshalOIDCConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
@@ -1365,6 +1415,8 @@ func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets boo
 
 // CreateOIDCAuthRequest creates new auth request
 func (s *IdentityService) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, ttl time.Duration) error {
+	fmt.Printf("binhnt.services.local.users.CreateOIDCAuthRequest: start %+v\n", req)
+
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}

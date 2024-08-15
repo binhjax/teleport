@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -49,6 +50,8 @@ import (
 )
 
 func init() {
+	fmt.Printf("binhnt.backend.firestore.init:  call backend.MustRegister: %s \n", GetName())
+
 	backend.MustRegister(GetName(), func(ctx context.Context, p backend.Params) (backend.Backend, error) {
 		return New(ctx, p, Options{})
 	})

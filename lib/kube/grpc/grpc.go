@@ -21,6 +21,7 @@ package kubev1
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -172,6 +173,8 @@ func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKub
 
 // authorize checks if the user is authorized to connect to the cluster.
 func (s *Server) authorize(ctx context.Context) (*authz.Context, error) {
+	fmt.Printf("kube.grpc.authorize: start \n")
+
 	authCtx, err := s.cfg.Authz.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

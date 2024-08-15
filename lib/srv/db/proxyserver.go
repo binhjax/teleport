@@ -548,6 +548,8 @@ func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, 
 
 // Authorize authorizes the provided client TLS connection.
 func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, params common.ConnectParams) (*common.ProxyContext, error) {
+	fmt.Printf("srv.db.proxyserver: Authorize: start \n")
+
 	ctx, err := s.middleware.WrapContextWithUser(ctx, tlsConn)
 	if err != nil {
 		return nil, trace.Wrap(err)

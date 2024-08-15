@@ -905,6 +905,7 @@ func FetchRoleList(roleNames []string, access RoleGetter, traits map[string][]st
 func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]string) (RoleSet, error) {
 	roles, err := FetchRoleList(roleNames, access, traits)
 	if err != nil {
+		fmt.Printf("binhnt.service.role.FetchRoles:  FetchRoleList failed %s ", err.Error())
 		return nil, trace.Wrap(err)
 	}
 	return NewRoleSet(roles...), nil

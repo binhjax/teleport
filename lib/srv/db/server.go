@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -1120,6 +1121,8 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 }
 
 func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
+	fmt.Printf("srv.db.server: Authorize: start \n")
+
 	// Only allow local and remote identities to proxy to a database.
 	userType, err := authz.UserFromContext(ctx)
 	if err != nil {

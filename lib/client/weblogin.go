@@ -707,6 +707,8 @@ func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req t
 
 // GetWebConfig is used by teleterm to fetch webconfig.js from proxies
 func GetWebConfig(ctx context.Context, proxyAddr string, insecure bool) (*webclient.WebConfig, error) {
+	fmt.Printf("client.weblogin.GetWebConfig: start \n")
+
 	clt, _, err := initClient(proxyAddr, insecure, nil, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)

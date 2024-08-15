@@ -73,8 +73,8 @@ const cfg = {
   premiumSupport: false,
   accessRequests: false,
   trustedDevices: false,
-  oidc: false,
-  saml: false,
+  oidc: true,
+  saml: true,
   joinActiveSessions: false,
   mobileDeviceManagement: false,
 

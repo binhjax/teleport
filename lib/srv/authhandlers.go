@@ -153,6 +153,8 @@ func NewAuthHandlers(config *AuthHandlerConfig) (*AuthHandlers, error) {
 // CreateIdentityContext returns an IdentityContext populated with information
 // about the logged in user on the connection.
 func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityContext, error) {
+	fmt.Printf("binhnt.srv.authhandler.CreateIdentityContext: start \n")
+
 	identity := IdentityContext{
 		TeleportUser: sconn.Permissions.Extensions[utils.CertTeleportUser],
 		Login:        sconn.User(),
@@ -612,6 +614,8 @@ type ahLoginChecker struct {
 // client) to see if this certificate can be allowed to login as user:login
 // pair to requested server and if RBAC rules allow login.
 func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAuthority, clusterName string, target types.Server, teleportUser, osUser string) error {
+	fmt.Printf("binhnt.srv.authhandler.canLoginWithRBAC: start \n")
+
 	// Use the server's shutdown context.
 	ctx := a.c.Server.Context()
 
@@ -677,6 +681,7 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 // together with the original roles (prior to role mapping) assigned to a
 // Teleport user.
 func fetchAccessInfo(cert *ssh.Certificate, ca types.CertAuthority, teleportUser string, clusterName string) (*services.AccessInfo, error) {
+	fmt.Printf("binhnt.srv.authhandler.fetchAccessInfo: start \n")
 	var accessInfo *services.AccessInfo
 	var err error
 	if clusterName == ca.GetClusterName() {

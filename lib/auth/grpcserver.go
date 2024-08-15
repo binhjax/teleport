@@ -564,6 +564,7 @@ func resourceLabel(event types.Event) string {
 }
 
 func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCertsRequest) (*authpb.Certs, error) {
+	fmt.Printf("binhnt.GRPCServer.GenerateUserCerts: start")
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -657,6 +658,7 @@ func (g *GRPCServer) GenerateHostCerts(ctx context.Context, req *authpb.HostCert
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	fmt.Printf("binhnt.GRPCServer.GenerateHostCerts: start")
 
 	// Pass along the remote address the request came from to the registration function.
 	p, ok := peer.FromContext(ctx)
@@ -879,10 +881,14 @@ func (g *GRPCServer) ClearAlertAcks(ctx context.Context, req *authpb.ClearAlertA
 // TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.GetUser] instead.
 func (g *GRPCServer) GetUser(ctx context.Context, req *authpb.GetUserRequest) (*types.UserV2, error) {
+	fmt.Printf("binhnt.auth.grpcserver.GetUser: start %+v \n", req)
 	resp, err := g.usersService.GetUser(ctx, &userspb.GetUserRequest{Name: req.Name, WithSecrets: req.WithSecrets})
 	if err != nil {
+		fmt.Printf("binhnt.auth.grpcserver.GetUser: usersService.GetUser failed %+s \n", err.Error())
+
 		return nil, trace.Wrap(err)
 	}
+	fmt.Printf("binhnt.auth.grpcserver.GetUser: user %+v \n", resp.User)
 
 	return resp.User, nil
 }
@@ -1188,6 +1194,8 @@ func (g *GRPCServer) GetPluginData(ctx context.Context, filter *types.PluginData
 func (g *GRPCServer) UpdatePluginData(ctx context.Context, params *types.PluginDataUpdateParams) (*emptypb.Empty, error) {
 	// TODO(fspmarshall): Implement rate-limiting to prevent misbehaving plugins from
 	// consuming too many server resources.
+	fmt.Printf("binhnt.GRPCServer.UpdatePluginData: start")
+
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1237,6 +1245,8 @@ func (g *GRPCServer) CreateUser(ctx context.Context, req *types.UserV2) (*emptyp
 // TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (g *GRPCServer) UpdateUser(ctx context.Context, req *types.UserV2) (*emptypb.Empty, error) {
+	fmt.Printf("binhnt.GRPCServer.UpdateUser: start")
+
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1308,6 +1318,8 @@ func (g *GRPCServer) CancelSemaphoreLease(ctx context.Context, req *types.Semaph
 
 // GetSemaphores returns a list of all semaphores matching the supplied filter.
 func (g *GRPCServer) GetSemaphores(ctx context.Context, req *types.SemaphoreFilter) (*authpb.Semaphores, error) {
+	fmt.Printf("binhnt.GRPCServer.GetSemaphores: start")
+
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1684,6 +1696,8 @@ func (g *GRPCServer) DeleteAllSnowflakeSessions(ctx context.Context, _ *emptypb.
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
 func (g *GRPCServer) CreateAppSession(ctx context.Context, req *authpb.CreateAppSessionRequest) (*authpb.CreateAppSessionResponse, error) {
+	fmt.Printf("binhnt.GRPCServer.CreateAppSession: start")
+
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2454,6 +2468,8 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req auth
 }
 
 func (g *GRPCServer) IsMFARequired(ctx context.Context, req *authpb.IsMFARequiredRequest) (*authpb.IsMFARequiredResponse, error) {
+	fmt.Printf("auth.grpcserver.IsMFARequired: start %+v \n", req)
+
 	actx, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2467,6 +2483,8 @@ func (g *GRPCServer) IsMFARequired(ctx context.Context, req *authpb.IsMFARequire
 
 // GetOIDCConnector retrieves an OIDC connector by name.
 func (g *GRPCServer) GetOIDCConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.OIDCConnectorV3, error) {
+	fmt.Printf("auth.grpcserver.GetOIDCConnector: start %+v \n", req)
+
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2484,6 +2502,8 @@ func (g *GRPCServer) GetOIDCConnector(ctx context.Context, req *types.ResourceWi
 
 // GetOIDCConnectors retrieves valid OIDC connectors, errors from individual connectors are not forwarded.
 func (g *GRPCServer) GetOIDCConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error) {
+	fmt.Printf("auth.grpcserver.GetOIDCConnectors: start %+v \n", req)
+
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2506,6 +2526,8 @@ func (g *GRPCServer) GetOIDCConnectors(ctx context.Context, req *types.Resources
 
 // CreateOIDCConnector creates a new OIDC connector.
 func (g *GRPCServer) CreateOIDCConnector(ctx context.Context, req *authpb.CreateOIDCConnectorRequest) (*types.OIDCConnectorV3, error) {
+	fmt.Printf("auth.grpcserver.CreateOIDCConnector: start %+v \n", req)
+
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2546,6 +2568,8 @@ func (g *GRPCServer) UpdateOIDCConnector(ctx context.Context, req *authpb.Update
 
 // UpsertOIDCConnectorV2 creates a new or replaces an existing OIDC connector.
 func (g *GRPCServer) UpsertOIDCConnectorV2(ctx context.Context, req *authpb.UpsertOIDCConnectorRequest) (*types.OIDCConnectorV3, error) {
+	fmt.Printf("auth.grpcserver.UpsertOIDCConnectorV2: start %+v \n", req)
+
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2565,6 +2589,8 @@ func (g *GRPCServer) UpsertOIDCConnectorV2(ctx context.Context, req *authpb.Upse
 // UpsertOIDCConnector creates a new or replaces an existing OIDC connector.
 // Deprecated: Use [GRPCServer.UpsertOIDCConnectorV2] instead.
 func (g *GRPCServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV3) (*emptypb.Empty, error) {
+	fmt.Printf("auth.grpcserver.UpsertOIDCConnector: start %+v \n", oidcConnector)
+
 	if _, err := g.UpsertOIDCConnectorV2(ctx, &authpb.UpsertOIDCConnectorRequest{Connector: oidcConnector}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2573,6 +2599,8 @@ func (g *GRPCServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *typ
 
 // DeleteOIDCConnector deletes an OIDC connector by name.
 func (g *GRPCServer) DeleteOIDCConnector(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
+	fmt.Printf("auth.grpcserver.DeleteOIDCConnector: start %+v \n", req)
+
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2585,6 +2613,7 @@ func (g *GRPCServer) DeleteOIDCConnector(ctx context.Context, req *types.Resourc
 
 // CreateOIDCAuthRequest creates OIDCAuthRequest
 func (g *GRPCServer) CreateOIDCAuthRequest(ctx context.Context, req *types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	fmt.Printf("binhnt.auth.grpcserver.CreateOIDCAuthRequest: start %+v\n", req)
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2598,6 +2627,8 @@ func (g *GRPCServer) CreateOIDCAuthRequest(ctx context.Context, req *types.OIDCA
 
 // GetOIDCAuthRequest gets OIDC AuthnRequest
 func (g *GRPCServer) GetOIDCAuthRequest(ctx context.Context, req *authpb.GetOIDCAuthRequestRequest) (*types.OIDCAuthRequest, error) {
+	fmt.Printf("binhnt.auth.grpcserver.GetOIDCAuthRequest: start %+v\n", req)
+
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2611,6 +2642,8 @@ func (g *GRPCServer) GetOIDCAuthRequest(ctx context.Context, req *authpb.GetOIDC
 
 // GetSAMLConnector retrieves a SAML connector by name.
 func (g *GRPCServer) GetSAMLConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.SAMLConnectorV2, error) {
+	fmt.Printf("binhnt.auth.grpcserver.GetSAMLConnector: start %+v\n", req)
+
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2628,6 +2661,8 @@ func (g *GRPCServer) GetSAMLConnector(ctx context.Context, req *types.ResourceWi
 
 // GetSAMLConnectors retrieves valid SAML connectors, errors from individual connectors are not forwarded.
 func (g *GRPCServer) GetSAMLConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.SAMLConnectorV2List, error) {
+	fmt.Printf("auth.grpcserver.GetSAMLConnectors: start %+v\n", req)
+
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2650,6 +2685,8 @@ func (g *GRPCServer) GetSAMLConnectors(ctx context.Context, req *types.Resources
 
 // CreateSAMLConnector creates a new SAML connector.
 func (g *GRPCServer) CreateSAMLConnector(ctx context.Context, req *authpb.CreateSAMLConnectorRequest) (*types.SAMLConnectorV2, error) {
+	fmt.Printf("binhnt.auth.grpcserver.CreateSAMLConnector: start %+v\n", req)
+
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2670,6 +2707,8 @@ func (g *GRPCServer) CreateSAMLConnector(ctx context.Context, req *authpb.Create
 
 // UpdateSAMLConnector updates an existing SAML connector.
 func (g *GRPCServer) UpdateSAMLConnector(ctx context.Context, req *authpb.UpdateSAMLConnectorRequest) (*types.SAMLConnectorV2, error) {
+	fmt.Printf("binhnt.auth.grpcserver.UpdateSAMLConnector: start %+v\n", req)
+
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2690,6 +2729,8 @@ func (g *GRPCServer) UpdateSAMLConnector(ctx context.Context, req *authpb.Update
 
 // UpsertSAMLConnectorV2 creates a new or replaces an existing SAML connector.
 func (g *GRPCServer) UpsertSAMLConnectorV2(ctx context.Context, req *authpb.UpsertSAMLConnectorRequest) (*types.SAMLConnectorV2, error) {
+	fmt.Printf("binhnt.auth.grpcserver.UpsertSAMLConnectorV2: start %+v\n", req)
+
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5064,6 +5105,8 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 
 // NewGRPCServer returns a new instance of gRPC server
 func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
+	// fmt.Printf("binhnt.grpcserver.NewGRPCServer: start grpc %+v \n", cfg)
+
 	err := metrics.RegisterPrometheusCollectors(heartbeatConnectionsReceived, watcherEventsEmitted, watcherEventSizes, connectedResources)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5236,6 +5279,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	assist.RegisterAssistServiceServer(server, assistSrv)
 	assist.RegisterAssistEmbeddingServiceServer(server, assistSrv)
 
+	fmt.Printf("binhnt.auth.grpcserver: Create serverWithNopRole \n")
 	// create server with no-op role to pass to JoinService server
 	serverWithNopRole, err := serverWithNopRole(cfg)
 	if err != nil {
@@ -5422,11 +5466,18 @@ type grpcContext struct {
 
 // authenticate extracts authentication context and returns initialized auth server
 func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
+	// fmt.Printf("binhnt.GRPCServer.authenticate: start \n")
+
 	// HTTPS server expects auth context to be set by the auth middleware
 	authContext, err := g.Authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// fmt.Printf("binhnt.GRPCServer.authenticate: authContext :%+v \n", authContext)
+
+	// fmt.Printf("binhnt.GRPCServer.authenticate: AuthServer :%+v \n", g.AuthServer)
+
 	return &grpcContext{
 		Context: authContext,
 		ServerWithRoles: &ServerWithRoles{
