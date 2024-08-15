@@ -1151,12 +1151,9 @@ func (s *sessionCache) newSessionContext(ctx context.Context, user, sessionID st
 }
 
 func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session types.WebSession) (*SessionContext, error) {
-<<<<<<< HEAD
 	// fmt.Printf("binnt.web.session.sessionCache.newSessionContextFromSession: start %+v \n", session)
-	tlsConfig, err := s.tlsConfig(ctx, session.GetTLSCert(), session.GetPriv())
-=======
+	// tlsConfig, err := s.tlsConfig(ctx, session.GetTLSCert(), session.GetPriv())
 	tlsConfig, err := s.tlsConfig(ctx, session.GetTLSCert(), session.GetTLSPriv())
->>>>>>> d80ab65401471409a44238b7a242b1f755d3f8ae
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

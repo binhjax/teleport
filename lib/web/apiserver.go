@@ -91,7 +91,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -1704,21 +1703,18 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		if clusterFeatures.GetCloud() {
 			tunnelPublicAddr = proxyConfig.SSH.TunnelPublicAddr
 		}
-<<<<<<< HEAD
 		// TODO(jakule): This part should be removed once the plugin support is added to OSS.
-		if proxyConfig.AssistEnabled {
-			enabled, err := h.cfg.ProxyClient.IsAssistEnabled(r.Context())
-			if err != nil {
-				fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: IsAssistEnabled failed %s \n", err.Error())
+		// if proxyConfig.AssistEnabled {
+		// 	enabled, err := h.cfg.ProxyClient.IsAssistEnabled(r.Context())
+		// 	if err != nil {
+		// 		fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: IsAssistEnabled failed %s \n", err.Error())
 
-				return nil, trace.Wrap(err)
-			}
+		// 		return nil, trace.Wrap(err)
+		// 	}
 
-			// disable if auth doesn't support assist
-			assistEnabled = enabled.Enabled
-		}
-=======
->>>>>>> d80ab65401471409a44238b7a242b1f755d3f8ae
+		// 	// disable if auth doesn't support assist
+		// 	assistEnabled = enabled.Enabled
+		// }
 	}
 
 	// disable joining sessions if proxy session recording is enabled
@@ -1744,27 +1740,23 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 	fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: recCfg %+v\n", recCfg)
 
-<<<<<<< HEAD
 	// TODO(mcbattirola): remove isTeam when it is no longer used
 	// isTeam := clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM
 
-=======
->>>>>>> d80ab65401471409a44238b7a242b1f755d3f8ae
 	webCfg := webclient.WebConfig{
-		Edition:                        modules.GetModules().BuildType(),
-		Auth:                           authSettings,
-		CanJoinSessions:                canJoinSessions,
-		IsCloud:                        clusterFeatures.GetCloud(),
-		TunnelPublicAddress:            tunnelPublicAddr,
-		RecoveryCodesEnabled:           clusterFeatures.GetRecoveryCodes(),
-		UI:                             h.getUIConfig(r.Context()),
-		IsDashboard:                    services.IsDashboard(clusterFeatures),
-		IsTeam:                         false,
+		Edition:              modules.GetModules().BuildType(),
+		Auth:                 authSettings,
+		CanJoinSessions:      canJoinSessions,
+		IsCloud:              clusterFeatures.GetCloud(),
+		TunnelPublicAddress:  tunnelPublicAddr,
+		RecoveryCodesEnabled: clusterFeatures.GetRecoveryCodes(),
+		UI:                   h.getUIConfig(r.Context()),
+		IsDashboard:          services.IsDashboard(clusterFeatures),
+		// IsTeam:                         false,
 		IsUsageBasedBilling:            clusterFeatures.GetIsUsageBased(),
 		AutomaticUpgrades:              automaticUpgradesEnabled,
 		AutomaticUpgradesTargetVersion: automaticUpgradesTargetVersion,
 		CustomTheme:                    clusterFeatures.GetCustomTheme(),
-<<<<<<< HEAD
 		IsIGSEnabled:                   clusterFeatures.GetIdentityGovernance(),
 		FeatureLimits: webclient.FeatureLimits{
 			AccessListCreateLimit:               int(clusterFeatures.GetAccessList().GetCreateLimit()),
@@ -1787,14 +1779,12 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		// TODO(mcbattirola): remove isTeam when it is no longer used
 		IsTeam: true,
 		// IsTeam: isTeam,
-=======
-		Questionnaire:                  clusterFeatures.GetQuestionnaire(),
-		IsStripeManaged:                clusterFeatures.GetIsStripeManaged(),
-		PremiumSupport:                 clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
-		PlayableDatabaseProtocols:      player.SupportedDatabaseProtocols,
-		// Entitlements are reset/overridden in setEntitlementsWithLegacyLogic until setEntitlementsWithLegacyLogic is removed in v18
-		Entitlements: GetWebCfgEntitlements(clusterFeatures.GetEntitlements()),
->>>>>>> d80ab65401471409a44238b7a242b1f755d3f8ae
+		// Questionnaire:                  clusterFeatures.GetQuestionnaire(),
+		// IsStripeManaged:                clusterFeatures.GetIsStripeManaged(),
+		// PremiumSupport:                 clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
+		// PlayableDatabaseProtocols:      player.SupportedDatabaseProtocols,
+		// // Entitlements are reset/overridden in setEntitlementsWithLegacyLogic until setEntitlementsWithLegacyLogic is removed in v18
+		// Entitlements: GetWebCfgEntitlements(clusterFeatures.GetEntitlements()),
 	}
 	// fmt.Printf("binhnt.web.apiserver.Handler.getWebConfig: webCfg %+v\n", webCfg)
 
